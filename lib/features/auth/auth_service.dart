@@ -10,7 +10,7 @@ class AuthService {
     required String fullName,
     required String email,
     required String password,
-    String? role,
+    required String phone, // ✅ THÊM DÒNG NÀY
   }) async {
     await _api.postJson(
       '/api/auth/register',
@@ -18,7 +18,7 @@ class AuthService {
         'fullName': fullName,
         'email': email,
         'password': password,
-        if (role != null) 'role': role,
+        'phone': phone, // ✅ THÊM DÒNG NÀY
       },
     );
   }

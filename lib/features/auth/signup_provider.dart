@@ -15,6 +15,7 @@ class SignupProvider extends ChangeNotifier {
     required String fullName,
     required String email,
     required String password,
+    required String phone, // ✅ THÊM DÒNG NÀY
   }) async {
     loading = true;
     error = null;
@@ -24,6 +25,7 @@ class SignupProvider extends ChangeNotifier {
         fullName: fullName,
         email: email,
         password: password,
+        phone: phone, // ✅ THÊM DÒNG NÀY
       );
       pendingEmail = email;
       return true;

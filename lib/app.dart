@@ -1,15 +1,15 @@
-// app.dart
-
+// THAY THẾ FILE NÀY: lib/app.dart
 import 'dart:async';
-
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'theme/app_theme.dart'; // ✅ ĐÃ IMPORT THEME
 
 import 'features/auth/auth_provider.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/signup_provider.dart';
-import 'features/auth/signup_screen.dart';
+// Đổi tên import 'signup' thành 'signupScreen' để rõ ràng hơn
+import 'features/auth/signup_screen.dart' as signupScreen;
 import 'features/auth/verify_email_screen.dart';
 import 'features/dashboards/admin_dashboard.dart';
 import 'features/dashboards/manager_dashboard.dart';
@@ -51,8 +51,6 @@ class GymApp extends StatefulWidget {
 class _GymAppState extends State<GymApp> {
   late final AppLinks _appLinks;
   StreamSubscription<Uri>? _linkSub;
-
-  // Dùng key để điều hướng thay vì context
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   @override
@@ -63,43 +61,25 @@ class _GymAppState extends State<GymApp> {
 
   Future<void> _initDeepLinks() async {
     _appLinks = AppLinks();
-
-    // Khi app mở lần đầu qua deep link
     try {
       final initialUri = await _appLinks.getInitialLink();
       if (initialUri != null) {
         _handleUri(initialUri);
       }
-    } catch (_) {
-      // ignore
-    }
-
-    // Khi app đang mở và nhận deep link
-    _linkSub = _appLinks.uriLinkStream.listen(
-      (uri) {
-        _handleUri(uri);
-      },
-      onError: (err) {
-        // ignore
-      },
-    );
+    } catch (_) {}
+    _linkSub = _appLinks.uriLinkStream.listen((uri) {
+      _handleUri(uri);
+    }, onError: (err) {});
   }
 
   void _handleUri(Uri uri) {
-    // gymapp://payment-result?success=true&code=00
     if (uri.scheme == 'gymapp' && uri.host == 'payment-result') {
       final successStr = uri.queryParameters['success'];
       final code = uri.queryParameters['code'] ?? 'N/A';
-
       final navigator = _navigatorKey.currentState;
       if (navigator == null) return;
-
-      // Route name chứa query, để onGenerateRoute parse ra
       final routeName =
           '/payment-result?success=${successStr ?? ''}&code=$code';
-
-      // Đợi xong frame đầu (MaterialApp đã tạo Navigator và push /login)
-      // rồi mới push màn kết quả để nó luôn nằm trên cùng.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         navigator.pushNamed(routeName);
       });
@@ -129,34 +109,33 @@ class _GymAppState extends State<GymApp> {
       ],
       child: MaterialApp(
         title: 'Gym Manager',
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
-        ),
+        theme: AppTheme.lightTheme, // ✅ SỬ DỤNG THEME MỚI
         initialRoute: '/login',
         navigatorKey: _navigatorKey,
         onGenerateRoute: (settings) {
           final Uri uri = Uri.parse(settings.name ?? '');
-
           switch (uri.path) {
             case '/payment-result':
               {
                 final successStr = uri.queryParameters['success'];
                 final code = uri.queryParameters['code'];
-
                 return MaterialPageRoute(
                   builder: (_) =>
                       PaymentResultScreen(success: successStr, code: code),
                 );
               }
-
             case '/login':
               return MaterialPageRoute(builder: (_) => const LoginScreen());
             case '/signup':
-              return MaterialPageRoute(builder: (_) => const SignupScreen());
+              return MaterialPageRoute(
+                // ✅ Sử dụng tên import mới
+                builder: (_) => const signupScreen.SignupScreen(),
+              );
             case '/verify':
               return MaterialPageRoute(
                 builder: (_) => const VerifyEmailScreen(),
               );
+            // ... (Tất cả các case route khác của bạn giữ nguyên)
             case '/members':
               return MaterialPageRoute(builder: (_) => const MembersScreen());
             case '/packages':
