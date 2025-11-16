@@ -48,20 +48,44 @@ class AttendanceProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// ✅ Hàm cũ: check-in theo memberId (dùng ở chỗ khác vẫn OK)
   Future<bool> checkIn(String memberId, {String? note}) async {
     try {
+      error = null;
+      notifyListeners();
       await _service.checkIn(memberId, note: note);
       return true;
-    } catch (_) {
+    } catch (e) {
+      error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// ✅ Hàm MỚI: check-in bằng mã / email / SĐT / id
+  /// gọi tới API: POST /api/attendance/checkin-by-code
+  Future<bool> checkInByCode(String identifier, {String? note}) async {
+    try {
+      error = null;
+      notifyListeners();
+      await _service.checkInByCode(identifier, note: note);
+      return true;
+    } catch (e) {
+      error = e.toString();
+      notifyListeners();
       return false;
     }
   }
 
   Future<bool> checkOut(String memberId, {String? note}) async {
     try {
+      error = null;
+      notifyListeners();
       await _service.checkOut(memberId, note: note);
       return true;
-    } catch (_) {
+    } catch (e) {
+      error = e.toString();
+      notifyListeners();
       return false;
     }
   }

@@ -5,68 +5,77 @@ import 'package:gym_frontend/features/auth/auth_service.dart';
 
 class SignupProvider extends ChangeNotifier {
   SignupProvider() : _service = AuthService(ApiClient(), TokenStorage());
+
   final AuthService _service;
 
-  bool loading = false;
-  String? error;
-  String? pendingEmail; // để dùng trên màn verify
+  bool _loading = false;
+  String? _error;
+  String? _pendingEmail; // để dùng trên màn verify
+
+  bool get loading => _loading;
+  String? get error => _error;
+  String? get pendingEmail => _pendingEmail;
 
   Future<bool> register({
     required String fullName,
     required String email,
     required String password,
-    required String phone, // ✅ THÊM DÒNG NÀY
+    required String phone, // ✅
   }) async {
-    loading = true;
-    error = null;
+    _loading = true;
+    _error = null;
     notifyListeners();
     try {
       await _service.register(
         fullName: fullName,
         email: email,
         password: password,
-        phone: phone, // ✅ THÊM DÒNG NÀY
+        phone: phone, // ✅
       );
-      pendingEmail = email;
+      _pendingEmail = email;
       return true;
     } on ApiException catch (e) {
-      error = e.message;
+      _error = e.message;
       return false;
     } catch (e) {
-      error = e.toString();
+      _error = e.toString();
       return false;
     } finally {
-      loading = false;
+      _loading = false;
       notifyListeners();
     }
   }
 
   Future<bool> verify(String code) async {
-    if (pendingEmail == null) {
-      error = 'Không có email để xác minh';
+    if (_pendingEmail == null) {
+      _error = 'Không có email để xác minh';
       notifyListeners();
       return false;
     }
-    loading = true;
-    error = null;
+    _loading = true;
+    _error = null;
     notifyListeners();
     try {
-      await _service.verifyEmail(email: pendingEmail!, code: code);
+      // Giả định rằng bạn đã cập nhật auth_service.dart
+      // để có hàm verifyEmail(email: ..., code: ...)
+      await _service.verifyEmail(email: _pendingEmail!, code: code);
       return true;
     } on ApiException catch (e) {
-      error = e.message;
+      _error = e.message;
       return false;
     } catch (e) {
-      error = e.toString();
+      _error = e.toString();
       return false;
     } finally {
-      loading = false;
+      _loading = false;
       notifyListeners();
     }
   }
 
   Future<void> resend() async {
-    if (pendingEmail == null) return;
-    await _service.resendVerification(pendingEmail!);
+    if (_pendingEmail == null) return;
+    // Giả định rằng bạn đã cập nhật auth_service.dart
+    // để có hàm resendVerification
+    await _service.resendVerification(_pendingEmail!);
   }
 }

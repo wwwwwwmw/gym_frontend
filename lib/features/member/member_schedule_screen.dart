@@ -1,19 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../../core/api_client.dart';
-import '../registrations/registration_service.dart';
-import '../registrations/registration_model.dart';
-
-// Vietnamese weekday names, Monday=1 ... Sunday=7
-const Map<int, String> _dayNamesVi = {
-  1: 'Thứ 2',
-  2: 'Thứ 3',
-  3: 'Thứ 4',
-  4: 'Thứ 5',
-  5: 'Thứ 6',
-  6: 'Thứ 7',
-  7: 'Chủ nhật',
-};
+import 'package:intl/intl.dart';
+import 'package:gym_frontend/core/api_client.dart';
+import 'member_schedule_model.dart';
+import 'member_schedule_service.dart';
 
 class MemberScheduleScreen extends StatefulWidget {
   const MemberScheduleScreen({super.key});
@@ -23,249 +12,149 @@ class MemberScheduleScreen extends StatefulWidget {
 }
 
 class _MemberScheduleScreenState extends State<MemberScheduleScreen> {
-  final _api = ApiClient();
+  late final MemberScheduleService _service;
+  bool _loading = true;
+  String? _error;
+  List<MemberScheduleItem> _items = [];
 
-  // Active registration (for display only)
-  bool _loadingRegs = true;
-  String? _regsError;
-  List<RegistrationModel> _activeRegs = const [];
-
-  // Weekly preferences: map day (1..7) -> shift ('morning'|'afternoon')
-  bool _prefsLoading = true;
-  final Map<int, String> _weekly = {}; // selected days only
-  bool _saving = false;
+  final _dateFmt = DateFormat('EEEE, dd/MM/yyyy', 'vi_VN');
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _loadPrefs();
-      await _loadRegsAndChanges();
+    _service = MemberScheduleService(ApiClient());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadForNextDays(14); // lấy lịch 14 ngày tới
     });
   }
 
-  Future<void> _loadRegsAndChanges() async {
+  Future<void> _loadForNextDays(int days) async {
     setState(() {
-      _loadingRegs = true;
-      _regsError = null;
+      _loading = true;
+      _error = null;
     });
+
+    final now = DateTime.now();
+    final from = DateTime(now.year, now.month, now.day);
+    final to = from.add(Duration(days: days));
+
     try {
-      final svc = RegistrationService(ApiClient());
-      final active = await svc.getSelfActive();
-      _activeRegs = active;
-      setState(() {});
+      final list = await _service.getSchedule(from: from, to: to);
+      setState(() {
+        _items = list;
+      });
     } catch (e) {
-      setState(() => _regsError = e.toString());
-    } finally {
-      if (mounted) setState(() => _loadingRegs = false);
-    }
-  }
-
-  Future<void> _persistPrefsLocal() async {
-    final sp = await SharedPreferences.getInstance();
-    final entries = _weekly.entries.toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
-    await sp.setStringList(
-      'member_schedule_weekly_days',
-      entries.map((e) => e.key.toString()).toList(),
-    );
-    await sp.setStringList(
-      'member_schedule_weekly_shifts',
-      entries.map((e) => e.value).toList(),
-    );
-  }
-
-  Future<void> _loadPrefs() async {
-    setState(() => _prefsLoading = true);
-    const defaults = <int, String>{1: 'morning', 3: 'morning', 5: 'morning'};
-    try {
-      final json = await _api.getJson('/api/members/me/schedule-preferences');
-      final weekly = (json['weekly'] as List?)
-          ?.map((e) => {
-                'day': int.tryParse('${e['day']}') ?? 0,
-                'shift': (e['shift']?.toString().toLowerCase() ?? 'morning'),
-              })
-          .where((e) => (e['day'] as int) >= 1 && (e['day'] as int) <= 7)
-          .toList();
       setState(() {
-        _weekly.clear();
-        if (weekly != null && weekly.isNotEmpty) {
-          for (final it in weekly) {
-            _weekly[it['day'] as int] = it['shift'] as String;
-          }
-        } else {
-          _weekly.addAll(defaults);
-        }
-        _prefsLoading = false;
+        _error = e.toString();
       });
-      // also cache locally
-      await _persistPrefsLocal();
-    } catch (_) {
-      // Fallback to local cache
-      final sp = await SharedPreferences.getInstance();
-      final days = sp.getStringList('member_schedule_weekly_days');
-      final shifts = sp.getStringList('member_schedule_weekly_shifts');
-      setState(() {
-        _weekly.clear();
-        if (days != null && shifts != null && days.length == shifts.length) {
-          for (var i = 0; i < days.length; i++) {
-            final d = int.tryParse(days[i]) ?? 0;
-            final s = shifts[i];
-            if (d >= 1 && d <= 7 && (s == 'morning' || s == 'afternoon')) {
-              _weekly[d] = s;
-            }
-          }
-        }
-        if (_weekly.isEmpty) _weekly.addAll(defaults);
-        _prefsLoading = false;
-      });
-    }
-  }
-
-  Future<void> _savePrefs() async {
-    if (_saving) return;
-    setState(() => _saving = true);
-    try {
-      final weekly = _weekly.entries
-          .toList()
-          ..sort((a, b) => a.key.compareTo(b.key));
-      final body = {
-        'weekly': weekly
-            .map((e) => {
-                  'day': e.key,
-                  'shift': e.value,
-                })
-            .toList(),
-      };
-      await _api.putJson('/api/members/me/schedule-preferences', body: body);
-    } catch (_) {
-      // ignore
     } finally {
-      await _persistPrefsLocal();
       if (mounted) {
-        setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã lưu lịch tập')),
-        );
+        setState(() {
+          _loading = false;
+        });
       }
     }
   }
 
-  String _shiftVi(String s) => s == 'afternoon' ? 'Chiều' : 'Sáng';
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
 
-  Widget _prefsSection() {
-    if (_prefsLoading) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(16),
-          child: CircularProgressIndicator(),
-        ),
-      );
+    return Scaffold(
+      appBar: AppBar(title: const Text('Lịch tập của tôi'), centerTitle: true),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+          ? Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(_error!, style: const TextStyle(color: Colors.red)),
+            )
+          : _items.isEmpty
+          ? _buildEmpty()
+          : RefreshIndicator(
+              onRefresh: () => _loadForNextDays(14),
+              child: _buildList(colorScheme),
+            ),
+    );
+  }
+
+  Widget _buildEmpty() => ListView(
+    padding: const EdgeInsets.all(16),
+    children: const [
+      Text('Hiện tại bạn chưa có lịch tập nào trong thời gian sắp tới.'),
+    ],
+  );
+
+  Widget _buildList(ColorScheme colorScheme) {
+    // group theo ngày
+    final Map<String, List<MemberScheduleItem>> grouped = {};
+    for (final item in _items) {
+      final key = DateTime(
+        item.date.year,
+        item.date.month,
+        item.date.day,
+      ).toIso8601String();
+      grouped.putIfAbsent(key, () => []).add(item);
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Chọn ngày và ca tập theo tuần'),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
+
+    final sortedKeys = grouped.keys.toList()
+      ..sort((a, b) => DateTime.parse(a).compareTo(DateTime.parse(b)));
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: sortedKeys.length,
+      itemBuilder: (context, index) {
+        final key = sortedKeys[index];
+        final date = DateTime.parse(key);
+        final items = grouped[key]!
+          ..sort((a, b) => a.startTime.compareTo(b.startTime));
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            for (int d = 1; d <= 7; d++)
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  FilterChip(
-                    label: Text(_dayNamesVi[d]!),
-                    selected: _weekly.containsKey(d),
-                    onSelected: (sel) {
-                      setState(() {
-                        if (sel) {
-                          _weekly[d] = _weekly[d] ?? 'morning';
-                        } else {
-                          _weekly.remove(d);
-                        }
-                        if (_weekly.isEmpty) {
-                          _weekly[1] = 'morning';
-                          _weekly[3] = 'morning';
-                          _weekly[5] = 'morning';
-                        }
-                      });
-                    },
-                  ),
-                  if (_weekly.containsKey(d))
-                    Padding(
-                      padding: const EdgeInsets.only(top: 6.0),
-                      child: SegmentedButton<String>(
-                        segments: const [
-                          ButtonSegment(value: 'morning', label: Text('Sáng')),
-                          ButtonSegment(value: 'afternoon', label: Text('Chiều')),
-                        ],
-                        selected: {_weekly[d]!},
-                        onSelectionChanged: (s) {
-                          setState(() => _weekly[d] = s.first);
-                        },
-                      ),
-                    ),
-                ],
+            Text(
+              _dateFmt.format(date),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            ...items.map((e) => _buildScheduleTile(e, colorScheme)),
+            const SizedBox(height: 16),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildScheduleTile(MemberScheduleItem item, ColorScheme colorScheme) {
+    final trainer = item.trainerName != null && item.trainerName!.isNotEmpty
+        ? 'HLV: ${item.trainerName}'
+        : null;
+    final pkg = item.packageName != null && item.packageName!.isNotEmpty
+        ? item.packageName
+        : null;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: const Color(0xFFFFEAEA),
+          child: Icon(Icons.fitness_center, color: colorScheme.error),
+        ),
+        title: Text('${item.startTime} – ${item.endTime}'),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (pkg != null) Text(pkg),
+            if (trainer != null) Text(trainer),
+            if (item.note != null && item.note!.isNotEmpty)
+              Text(
+                item.note!,
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
               ),
           ],
         ),
-        const SizedBox(height: 8),
-        Text(
-          'Bạn đã chọn:\n' +
-              ([
-                for (final e in _weekly.entries.toList()
-                  ..sort((a, b) => a.key.compareTo(b.key)))
-                  '${_dayNamesVi[e.key]}: ${_shiftVi(e.value)}'
-              ].join(', ')),
-        ),
-        const SizedBox(height: 12),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: FilledButton.icon(
-            onPressed: _saving ? null : _savePrefs,
-            icon: _saving
-                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.save),
-            label: const Text('Lưu lịch'),
-          ),
-        )
-      ],
-    );
-  }
-
-  // Nút đổi lịch đã chuyển sang màn hình gói tập, không xử lý tại đây.
-
-  @override
-  Widget build(BuildContext context) {
-    final hasActive = _activeRegs.isNotEmpty;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Lịch tập của tôi')),
-      // Nút "Đổi lịch" được chuyển sang màn hình gói tập, không hiển thị ở đây
-      body: _loadingRegs
-          ? const Center(child: CircularProgressIndicator())
-          : _regsError != null
-              ? Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(
-                    _regsError!,
-                    style: const TextStyle(color: Colors.red),
-                  ),
-                )
-              : ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    if (hasActive) ...[
-                      Text('Gói: ${_activeRegs.first.package.name}')
-                    ] else ...[
-                      const Text('Chưa có gói tập hiện tại')
-                    ],
-                    const SizedBox(height: 12),
-                    _prefsSection(),
-                  ],
-                ),
+      ),
     );
   }
 }
-

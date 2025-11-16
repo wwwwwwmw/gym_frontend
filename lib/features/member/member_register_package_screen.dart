@@ -1,13 +1,39 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:gym_frontend/core/api_client.dart';
+import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../core/api_client.dart';
-import '../discounts/discount_provider.dart';
-import '../employees/employee_service.dart';
-import '../packages/package_provider.dart';
-import '../registrations/registration_model.dart';
-import 'member_current_package_screen.dart';
+class GymPackage {
+  final String id;
+  final String name;
+  final String description;
+  final int price; // đơn vị: VND
+  final int durationInDays; // số ngày
+  final int? sessions; // số buổi (nếu có)
+
+  GymPackage({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.price,
+    required this.durationInDays,
+    this.sessions,
+  });
+
+  factory GymPackage.fromJson(Map<String, dynamic> json) {
+    return GymPackage(
+      id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? 'Gói tập',
+      description: json['description']?.toString() ?? '',
+      price: (json['price'] as num?)?.toInt() ?? 0,
+      durationInDays:
+          (json['durationInDays'] as num?)?.toInt() ??
+          (json['duration'] as num?)?.toInt() ??
+          0,
+      sessions: (json['sessions'] as num?)?.toInt(),
+    );
+  }
+}
 
 class MemberRegisterPackageScreen extends StatefulWidget {
   const MemberRegisterPackageScreen({super.key});
@@ -19,372 +45,316 @@ class MemberRegisterPackageScreen extends StatefulWidget {
 
 class _MemberRegisterPackageScreenState
     extends State<MemberRegisterPackageScreen> {
-  String? _packageId;
-  String? _discountId;
-  String? _trainerId;
-  List<Map<String, String>> _trainers = const [];
-  bool _submitting = false;
-  bool _blocked = false;
-  String? _blockMsg;
-  bool _prebook = false;
-  DateTime? _currentEnd;
+  final _api = ApiClient();
+  late Future<List<GymPackage>> _futurePackages;
+  final _currency = NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
 
-  String _paymentMethod = 'cash';
+  bool _creatingOrder = false; // trạng thái đang tạo đơn VNPay
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      context.read<PackageProvider>().fetch();
-      await context.read<DiscountProvider>().fetchActivePublic();
-      await _loadTrainers();
-      await _checkBlock();
-    });
+    _futurePackages = _loadPackages();
   }
 
-  Future<void> _loadTrainers() async {
+  Future<List<GymPackage>> _loadPackages() async {
+    final res = await _api.getJson('/api/packages?page=1&limit=20');
+
+    final raw = res is Map<String, dynamic>
+        ? (res['items'] ?? res['data'] ?? res['results'] ?? [])
+        : res;
+
+    final list = (raw as List)
+        .map((e) => GymPackage.fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList();
+
+    return list;
+  }
+
+  /// Gọi API /api/registrations/me với paymentMethod = 'vnpay'
+  /// rồi mở trang thanh toán VNPay
+  Future<void> _startVnPayPayment(GymPackage pkg) async {
+    if (_creatingOrder) return;
+    setState(() => _creatingOrder = true);
+
     try {
-      final svc = EmployeeService(ApiClient());
-      final list = await svc.listActiveTrainers();
-      if (!mounted) return;
-      setState(() {
-        _trainers = [
-          for (final t in list) {'id': t.id, 'name': t.fullName},
-        ];
-      });
-    } catch (_) {}
-  }
+      final res = await _api.postJson(
+        '/api/registrations/me',
+        body: {
+          'packageId': pkg.id,
+          'paymentMethod': 'vnpay',
+          // sau này có thể thêm discountId, trainerId, prebook...
+        },
+      );
 
-  Future<void> _checkBlock() async {
-    try {
-      final apiClient = ApiClient();
+      final paymentUrl = res['paymentUrl']?.toString();
 
-      // Endpoint member: GET /api/registrations/me/active
-      final response = await apiClient.getJson('/api/registrations/me/active');
-
-      final list = (response['activePackages'] as List)
-          .map((json) => RegistrationModel.fromJson(json))
-          .toList();
+      if (paymentUrl == null || paymentUrl.isEmpty) {
+        throw ApiException('Không nhận được link thanh toán từ server');
+      }
 
       if (!mounted) return;
-      if (list.isNotEmpty) {
-        setState(() {
-          _blocked = true;
-          final p = list.first.package.name;
-          _blockMsg =
-              'Bạn đang có gói tập hoạt động hoặc đang chờ duyệt${p.isNotEmpty ? ': $p' : ''}';
-          _currentEnd = list.first.endDate;
-        });
-      } else {
-        setState(() {
-          _blocked = false;
-          _blockMsg = null;
-          _currentEnd = null;
-        });
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _blocked = false;
-          _blockMsg = null;
-          _currentEnd = null;
-        });
-      }
-    }
-  }
 
-  Future<void> _submitRegistration() async {
-    if (_blocked && !_prebook) {
+      // Đóng bottom sheet trước khi mở trình duyệt
+      Navigator.of(context).pop();
+
+      final uri = Uri.parse(paymentUrl);
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không mở được trang thanh toán VNPay')),
+        );
+      }
+    } on ApiException catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            _blockMsg ?? 'Bạn đang có gói tập hoạt động hoặc đang chờ duyệt',
-          ),
+          content: Text(e.message),
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
-      return;
-    }
-
-    if (_packageId == null || _packageId!.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Vui lòng chọn gói tập')));
-      return;
-    }
-
-    final pk = context.read<PackageProvider>();
-    final selectedPackage = pk.items
-        .where((e) => e.id == _packageId)
-        .firstOrNull;
-
-    if (selectedPackage != null && selectedPackage.isPersonalTraining) {
-      if (_trainerId == null || _trainerId!.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Gói PT yêu cầu chọn Huấn luyện viên')),
-        );
-        return;
-      }
-    }
-
-    setState(() => _submitting = true);
-
-    bool didNavigate = false;
-
-    try {
-      final apiClient = ApiClient();
-      final body = {
-        'packageId': _packageId!,
-        'discountId': _discountId,
-        'trainerId': _trainerId,
-        'prebook': _prebook,
-        'paymentMethod': _paymentMethod,
-      };
-
-      // ✅ Dùng endpoint cho member: POST /api/registrations/me
-      final response = await apiClient.postJson(
-        '/api/registrations/me',
-        body: body,
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Có lỗi xảy ra khi tạo đơn thanh toán: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
       );
-
-      if (!context.mounted) return;
-
-      // --- VNPay ---
-      if (response.containsKey('paymentUrl')) {
-        final url = response['paymentUrl'] as String;
-        final uri = Uri.parse(url);
-
-        // Gọi thẳng launchUrl, không dùng canLaunchUrl nữa
-        final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-
-        if (!ok) {
-          throw Exception('Không thể mở cổng thanh toán VNPay');
-        }
-
-        Navigator.of(context).pop();
-        didNavigate = true;
+    } finally {
+      if (mounted) {
+        setState(() => _creatingOrder = false);
       }
-      // --- Cash ---
-      else if (response.containsKey('registration')) {
-        final reg = RegistrationModel.fromJson(response['registration']);
+    }
+  }
 
-        await showDialog(
-          context: context,
-          builder: (dialogContext) => AlertDialog(
-            title: const Text('Đã gửi đăng ký'),
-            content: Text(
-              'Gói: ${reg.package.name}\nTrạng thái: ${reg.status.toUpperCase()} (chờ duyệt)',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Đóng'),
+  void _onSelectPackage(GymPackage pkg) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        final colorScheme = Theme.of(context).colorScheme;
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 50,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              Text(
+                pkg.name,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _currency.format(pkg.price),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: colorScheme.error,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Thời hạn: ${pkg.durationInDays} ngày'
+                '${pkg.sessions != null ? ' • ${pkg.sessions} buổi' : ''}',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade700),
+              ),
+              const SizedBox(height: 12),
+              if (pkg.description.isNotEmpty)
+                Text(
+                  pkg.description,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    backgroundColor: colorScheme.error,
+                    foregroundColor: colorScheme.onError,
+                    textStyle: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  onPressed: _creatingOrder
+                      ? null
+                      : () => _startVnPayPayment(pkg),
+                  child: _creatingOrder
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Tiếp tục đăng ký'),
+                ),
               ),
             ],
           ),
         );
-        if (!context.mounted) return;
-        Navigator.of(context).pop();
-        didNavigate = true;
-      } else {
-        throw Exception('Phản hồi API không hợp lệ');
-      }
-    } catch (e) {
-      if (!context.mounted) return;
-      final msg = e is ApiException ? e.message : e.toString();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-      await _checkBlock();
-    } finally {
-      if (mounted && !didNavigate) {
-        setState(() => _submitting = false);
-      }
-    }
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final pk = context.watch<PackageProvider>();
-    final dc = context.watch<DiscountProvider>();
-    final selectedPackage = pk.items
-        .where((e) => e.id == _packageId)
-        .firstOrNull;
-    final isPt = selectedPackage?.isPersonalTraining ?? false;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Đăng ký gói tập')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          if (_blocked && _blockMsg != null)
-            Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.amber.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.amber.shade200),
+      appBar: AppBar(title: const Text('Đăng ký gói tập'), centerTitle: true),
+      body: FutureBuilder<List<GymPackage>>(
+        future: _futurePackages,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 48,
+                      color: Colors.red,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Không tải được danh sách gói tập.\n${snapshot.error}',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _futurePackages = _loadPackages();
+                        });
+                      },
+                      child: const Text('Thử lại'),
+                    ),
+                  ],
+                ),
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.info, color: Colors.amber),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(_blockMsg!),
-                        if (_currentEnd != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Text(() {
-                              final daysLeft = _currentEnd!
-                                  .difference(DateTime.now())
-                                  .inDays;
-                              if (daysLeft > 0) {
-                                return 'Gói hiện tại còn $daysLeft ngày (đến ${_currentEnd!.toLocal().toString().split(' ').first})';
-                              } else {
-                                return 'Gói hiện tại đã hết hạn (${_currentEnd!.toLocal().toString().split(' ').first})';
-                              }
-                            }(), style: const TextStyle(color: Colors.black87)),
-                          ),
-                        Row(
+            );
+          }
+
+          final packages = snapshot.data ?? [];
+
+          if (packages.isEmpty) {
+            return const Center(child: Text('Hiện chưa có gói tập nào.'));
+          }
+
+          return ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: packages.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final pkg = packages[index];
+              return InkWell(
+                onTap: () => _onSelectPackage(pkg),
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF5F5),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.red.shade100),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          Icons.fitness_center,
+                          color: colorScheme.error,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Checkbox(
-                              value: _prebook,
-                              onChanged: (v) =>
-                                  setState(() => _prebook = v ?? false),
-                            ),
-                            const Expanded(
-                              child: Text(
-                                'Đặt trước: tạo đăng ký mới bắt đầu ngay sau khi gói hiện tại kết thúc',
+                            Text(
+                              pkg.name,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _currency.format(pkg.price),
+                              style: TextStyle(
+                                color: colorScheme.error,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Thời hạn: ${pkg.durationInDays} ngày'
+                              '${pkg.sessions != null ? ' • ${pkg.sessions} buổi' : ''}',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
+                            if (pkg.description.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                pkg.description,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey.shade700,
+                                ),
+                              ),
+                            ],
                           ],
                         ),
-                      ],
-                    ),
+                      ),
+                      const Icon(Icons.chevron_right),
+                    ],
                   ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const MemberCurrentPackageScreen(),
-                        ),
-                      );
-                    },
-                    child: const Text('Xem gói hiện tại'),
-                  ),
-                ],
-              ),
-            ),
-
-          // chọn gói
-          const Text('Chọn gói'),
-          const SizedBox(height: 8),
-          DropdownButtonFormField<String?>(
-            isExpanded: true,
-            value: _packageId,
-            items: [
-              for (final p in pk.items)
-                DropdownMenuItem(
-                  value: p.id,
-                  child: Text('${p.name} • ${p.price}đ'),
                 ),
-            ],
-            onChanged: (v) => setState(() {
-              _packageId = v;
-              final selectedPackage = pk.items
-                  .where((e) => e.id == v)
-                  .firstOrNull;
-              if (selectedPackage != null &&
-                  !selectedPackage.isPersonalTraining) {
-                _trainerId = null;
-              }
-            }),
-            decoration: const InputDecoration(border: OutlineInputBorder()),
-          ),
-
-          const SizedBox(height: 16),
-          const Text('Chọn mã giảm giá (tuỳ chọn)'),
-          const SizedBox(height: 8),
-
-          DropdownButtonFormField<String?>(
-            isExpanded: true,
-            value: _discountId,
-            items: [
-              const DropdownMenuItem<String?>(
-                value: null,
-                child: Text('Không áp dụng'),
-              ),
-              for (final d in dc.items)
-                DropdownMenuItem<String?>(value: d.id, child: Text(d.name)),
-            ],
-            onChanged: (v) => setState(() => _discountId = v),
-            decoration: const InputDecoration(border: OutlineInputBorder()),
-          ),
-
-          if (isPt) ...[
-            const SizedBox(height: 16),
-            const Text('Chọn huấn luyện viên (PT)'),
-            const SizedBox(height: 8),
-
-            DropdownButtonFormField<String?>(
-              isExpanded: true,
-              value: _trainerId,
-              items: [
-                const DropdownMenuItem<String?>(
-                  value: null,
-                  child: Text('Không chọn'),
-                ),
-                for (final t in _trainers)
-                  DropdownMenuItem<String?>(
-                    value: t['id'],
-                    child: Text(t['name'] ?? ''),
-                  ),
-              ],
-              onChanged: (v) => setState(() => _trainerId = v),
-              decoration: const InputDecoration(border: OutlineInputBorder()),
-            ),
-          ],
-
-          const SizedBox(height: 16),
-          const Text('Chọn phương thức thanh toán'),
-          const SizedBox(height: 8),
-
-          DropdownButtonFormField<String>(
-            isExpanded: true,
-            value: _paymentMethod,
-            items: const [
-              DropdownMenuItem<String>(
-                value: 'cash',
-                child: Text('Thanh toán tại quầy (Tiền mặt)'),
-              ),
-              DropdownMenuItem<String>(
-                value: 'vnpay',
-                child: Text('Thanh toán Online (VNPay)'),
-              ),
-            ],
-            onChanged: (v) => setState(() => _paymentMethod = v ?? 'cash'),
-            decoration: const InputDecoration(border: OutlineInputBorder()),
-          ),
-
-          const SizedBox(height: 24),
-
-          FilledButton(
-            onPressed: _submitting ? null : _submitRegistration,
-            child: _submitting
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(
-                    _paymentMethod == 'vnpay'
-                        ? 'Tiếp tục thanh toán VNPay'
-                        : 'Gửi đăng ký',
-                  ),
-          ),
-        ],
+              );
+            },
+          );
+        },
       ),
     );
   }

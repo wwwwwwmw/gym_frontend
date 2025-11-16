@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'theme/app_theme.dart'; // ✅ ĐÃ IMPORT THEME
+import 'theme/app_theme.dart';
 
 import 'features/auth/auth_provider.dart';
 import 'features/auth/login_screen.dart';
@@ -15,7 +15,7 @@ import 'features/dashboards/admin_dashboard.dart';
 import 'features/dashboards/manager_dashboard.dart';
 import 'features/dashboards/trainer_dashboard.dart';
 import 'features/dashboards/reception_dashboard.dart';
-import 'features/dashboards/member_dashboard.dart';
+import 'features/member/member_home_screen.dart';
 import 'features/members/member_provider.dart';
 import 'features/members/members_screen.dart';
 import 'features/packages/package_provider.dart';
@@ -159,7 +159,10 @@ class _GymAppState extends State<GymApp> {
                 builder: (_) => const ReceptionDashboard(),
               );
             case '/dash/member':
-              return MaterialPageRoute(builder: (_) => const MemberDashboard());
+              return MaterialPageRoute(
+                builder: (_) => const MemberHomeScreen(),
+              );
+
             case '/member/register-package':
               return MaterialPageRoute(
                 builder: (_) => const MemberRegisterPackageScreen(),

@@ -17,6 +17,7 @@ class AuthProvider extends ChangeNotifier {
   Map<String, dynamic>? get user => _user;
   String? get role => _user?['role'] as String?;
 
+  // ===== ĐĂNG NHẬP =====
   Future<bool> login(String email, String password) async {
     _loading = true;
     _error = null;
@@ -43,5 +44,21 @@ class AuthProvider extends ChangeNotifier {
     await _service.logout();
     _user = null;
     notifyListeners();
+  }
+
+  // ===== QUÊN MẬT KHẨU =====
+
+  /// B1: gửi email để backend gửi OTP
+  Future<void> requestPasswordReset(String email) {
+    return _service.requestPasswordReset(email);
+  }
+
+  /// B2: gửi email + OTP + mật khẩu mới
+  Future<void> resetPassword(String email, String code, String newPassword) {
+    return _service.resetPassword(
+      email: email,
+      code: code,
+      newPassword: newPassword,
+    );
   }
 }

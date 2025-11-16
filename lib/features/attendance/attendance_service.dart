@@ -38,11 +38,28 @@ class AttendanceService {
     return Map<String, dynamic>.from(res);
   }
 
+  /// ✅ Check-in theo memberId (giữ nguyên)
   Future<AttendanceModel> checkIn(String memberId, {String? note}) async {
     final res = await api.postJson(
       '/api/attendance/checkin',
       body: {
         'memberId': memberId,
+        if (note != null && note.isNotEmpty) 'note': note,
+      },
+    );
+    return AttendanceModel.fromJson(res['attendance']);
+  }
+
+  /// ✅ Check-in bằng mã / email / SĐT / id
+  /// Gọi tới BE: POST /api/attendance/checkin-by-code
+  Future<AttendanceModel> checkInByCode(
+    String identifier, {
+    String? note,
+  }) async {
+    final res = await api.postJson(
+      '/api/attendance/checkin-by-code',
+      body: {
+        'identifier': identifier,
         if (note != null && note.isNotEmpty) 'note': note,
       },
     );
