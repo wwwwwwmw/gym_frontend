@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import 'user_provider.dart';
 import 'user_model.dart';
 
@@ -11,134 +12,165 @@ class UsersScreen extends StatefulWidget {
 }
 
 class _UsersScreenState extends State<UsersScreen> {
-  final _search = TextEditingController();
-  String? _role;
-  bool? _verified;
+  final _searchCtrl = TextEditingController();
+  String? _role; // ADMIN / MANAGER / ...
+  bool? _verified; // true / false / null
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<UserProvider>().fetch();
-    });
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => context.read<UserProvider>().fetch(),
+    );
   }
 
   @override
   void dispose() {
-    _search.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<UserProvider>();
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Người dùng'),
+        centerTitle: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => context.read<UserProvider>().fetch(
-              search: _search.text,
-              role: _role,
-              verified: _verified,
-            ),
+            tooltip: 'Tải lại',
+            onPressed: () => _reload(),
           ),
           IconButton(
-            tooltip: 'Tạo người dùng',
-            icon: const Icon(Icons.person_add),
-            onPressed: () async {
-              final created = await _showCreateDialog(context);
-              if (!context.mounted) return;
-              if (created == true) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Đã tạo người dùng')),
-                );
-                context.read<UserProvider>().fetch(
-                  search: _search.text,
-                  role: _role,
-                  verified: _verified,
-                );
-              }
-            },
+            icon: const Icon(Icons.person_add_alt_1),
+            tooltip: 'Thêm người dùng',
+            onPressed: () => _openCreateUserDialog(),
           ),
         ],
       ),
       body: Column(
         children: [
+          // ===== FILTER BAR =====
           Padding(
-            padding: const EdgeInsets.all(8),
-            child: Row(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Column(
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _search,
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.search),
-                      hintText: 'Tìm theo tên hoặc email',
+                TextField(
+                  controller: _searchCtrl,
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.search),
+                    hintText: 'Tìm theo tên / email...',
+                    filled: true,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
                     ),
-                    onSubmitted: (_) => context.read<UserProvider>().fetch(
-                      search: _search.text,
-                      role: _role,
-                      verified: _verified,
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchCtrl.clear();
+                        _reload();
+                      },
                     ),
                   ),
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) => _reload(),
                 ),
-                const SizedBox(width: 8),
-                DropdownButton<String>(
-                  value: _role,
-                  hint: const Text('Vai trò'),
-                  items: const [
-                    DropdownMenuItem(value: 'ADMIN', child: Text('ADMIN')),
-                    DropdownMenuItem(value: 'MANAGER', child: Text('MANAGER')),
-                    DropdownMenuItem(value: 'TRAINER', child: Text('TRAINER')),
-                    DropdownMenuItem(
-                      value: 'RECEPTION',
-                      child: Text('RECEPTION'),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _role,
+                          isExpanded: true,
+                          hint: const Text('Vai trò'),
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'ADMIN',
+                              child: Text('ADMIN'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'MANAGER',
+                              child: Text('MANAGER'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'TRAINER',
+                              child: Text('TRAINER'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'RECEPTION',
+                              child: Text('RECEPTION'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'MEMBER',
+                              child: Text('MEMBER'),
+                            ),
+                          ],
+                          onChanged: (v) {
+                            setState(() => _role = v);
+                            _reload();
+                          },
+                        ),
+                      ),
                     ),
-                    DropdownMenuItem(value: 'MEMBER', child: Text('MEMBER')),
-                  ],
-                  onChanged: (v) {
-                    setState(() => _role = v);
-                    context.read<UserProvider>().fetch(
-                      search: _search.text,
-                      role: v,
-                      verified: _verified,
-                    );
-                  },
-                ),
-                const SizedBox(width: 8),
-                DropdownButton<bool>(
-                  value: _verified,
-                  hint: const Text('Xác thực email'),
-                  items: const [
-                    DropdownMenuItem(value: true, child: Text('Đã xác thực')),
-                    DropdownMenuItem(
-                      value: false,
-                      child: Text('Chưa xác thực'),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _verified == null
+                              ? null
+                              : (_verified! ? 'verified' : 'unverified'),
+                          isExpanded: true,
+                          hint: const Text('Xác thực email'),
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'verified',
+                              child: Text('Đã xác thực'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'unverified',
+                              child: Text('Chưa xác thực'),
+                            ),
+                          ],
+                          onChanged: (v) {
+                            setState(() {
+                              if (v == null) {
+                                _verified = null;
+                              } else if (v == 'verified') {
+                                _verified = true;
+                              } else {
+                                _verified = false;
+                              }
+                            });
+                            _reload();
+                          },
+                        ),
+                      ),
                     ),
                   ],
-                  onChanged: (v) {
-                    setState(() => _verified = v);
-                    context.read<UserProvider>().fetch(
-                      search: _search.text,
-                      role: _role,
-                      verified: v,
-                    );
-                  },
                 ),
               ],
             ),
           ),
+
+          // ===== LIST =====
           Expanded(
             child: vm.loading
                 ? const Center(child: CircularProgressIndicator())
                 : vm.error != null
-                ? Center(child: Text(vm.error!))
+                ? _errorView(vm.error!)
+                : vm.items.isEmpty
+                ? _emptyView()
                 : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                     itemCount: vm.items.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (ctx, i) => _tile(context, vm.items[i]),
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (ctx, i) =>
+                        _userCard(context, vm.items[i], colorScheme),
                   ),
           ),
         ],
@@ -146,316 +178,478 @@ class _UsersScreenState extends State<UsersScreen> {
     );
   }
 
-  Widget _tile(BuildContext context, UserModel u) {
-    return ListTile(
-      title: Text(u.fullName),
-      subtitle: Text(
-        '${u.email} • ${u.role} • ${u.isEmailVerified ? 'đã xác thực' : 'chưa xác thực'}',
+  // =================== HELPERS ===================
+
+  void _reload() {
+    context.read<UserProvider>().fetch(
+      search: _searchCtrl.text.trim().isEmpty ? null : _searchCtrl.text.trim(),
+      role: _role,
+      verified: _verified,
+    );
+  }
+
+  Widget _errorView(String error) {
+    final text = error.length > 120 ? '${error.substring(0, 120)}...' : error;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text(
+          'Có lỗi xảy ra khi tải danh sách người dùng.\n$text',
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.red),
+        ),
       ),
-      trailing: Row(
+    );
+  }
+
+  Widget _emptyView() {
+    return Center(
+      child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.admin_panel_settings),
-            onSelected: (value) async {
-              final ok = await context.read<UserProvider>().updateRole(
-                u.id,
-                value,
-              );
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    ok ? 'Đã cập nhật vai trò' : 'Cập nhật thất bại',
+          Icon(Icons.people_outline, size: 56, color: Colors.grey.shade400),
+          const SizedBox(height: 12),
+          const Text(
+            'Chưa có người dùng nào',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Hãy thêm người dùng hoặc kiểm tra lại bộ lọc.',
+            style: TextStyle(fontSize: 12, color: Colors.black54),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _userCard(BuildContext context, UserModel u, ColorScheme colorScheme) {
+    final initials = _initialsOf(u.fullName);
+    final verifiedColor = u.isEmailVerified
+        ? Colors.green.shade600
+        : Colors.orange.shade700;
+    final verifiedLabel = u.isEmailVerified
+        ? 'Email đã xác thực'
+        : 'Email chưa xác thực';
+
+    return Material(
+      elevation: 1,
+      borderRadius: BorderRadius.circular(16),
+      color: Theme.of(context).cardColor,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () {
+          // nếu sau này có màn chi tiết user thì mở ở đây
+        },
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: colorScheme.primary.withOpacity(0.1),
+                child: Text(
+                  initials,
+                  style: TextStyle(
+                    color: colorScheme.primary,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-              );
-            },
-            itemBuilder: (ctx) => const [
-              PopupMenuItem(value: 'ADMIN', child: Text('Set ADMIN')),
-              PopupMenuItem(value: 'MANAGER', child: Text('Set MANAGER')),
-              PopupMenuItem(value: 'TRAINER', child: Text('Set TRAINER')),
-              PopupMenuItem(value: 'RECEPTION', child: Text('Set RECEPTION')),
-              PopupMenuItem(value: 'MEMBER', child: Text('Set MEMBER')),
-            ],
-          ),
-          IconButton(
-            tooltip: u.isEmailVerified
-                ? 'Đánh dấu chưa xác thực'
-                : 'Đánh dấu đã xác thực',
-            icon: Icon(
-              u.isEmailVerified ? Icons.verified : Icons.verified_outlined,
-            ),
-            onPressed: () async {
-              final ok = await context.read<UserProvider>().setVerified(
-                u.id,
-                !u.isEmailVerified,
-              );
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    ok ? 'Đã cập nhật xác thực' : 'Cập nhật thất bại',
-                  ),
-                ),
-              );
-            },
-          ),
-          IconButton(
-            tooltip: 'Đặt lại mật khẩu',
-            icon: const Icon(Icons.password),
-            onPressed: () async {
-              final newPass = await _promptText(
-                context,
-                title: 'Đặt mật khẩu mới (tối thiểu 6 ký tự)',
-              );
-              if (!context.mounted || newPass == null) return;
-              final ok = await context.read<UserProvider>().setPassword(
-                u.id,
-                newPass,
-              );
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    ok ? 'Đã cập nhật mật khẩu' : 'Cập nhật thất bại',
-                  ),
-                ),
-              );
-            },
-          ),
-          IconButton(
-            tooltip: 'Xoá người dùng',
-            icon: const Icon(Icons.delete),
-            onPressed: () async {
-              final ok = await showDialog<bool>(
-                context: context,
-                builder: (_) => AlertDialog(
-                  title: const Text('Xoá người dùng?'),
-                  content: Text('Xoá ${u.fullName}?'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('Huỷ'),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      u.fullName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
                     ),
-                    FilledButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      child: const Text('Xoá'),
+                    const SizedBox(height: 2),
+                    Text(
+                      u.email,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            u.role,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: verifiedColor.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                u.isEmailVerified
+                                    ? Icons.verified
+                                    : Icons.mark_email_unread,
+                                size: 13,
+                                color: verifiedColor,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                verifiedLabel,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  color: verifiedColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              );
-              if (ok == true) {
-                if (!context.mounted) return;
-                final done = await context.read<UserProvider>().remove(u.id);
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      done ? 'Đã xoá người dùng' : 'Xoá không thành công',
+              ),
+              PopupMenuButton<_UserAction>(
+                onSelected: (action) => _handleAction(action, u),
+                itemBuilder: (ctx) => [
+                  const PopupMenuItem(
+                    value: _UserAction.changeRole,
+                    child: Text('Đổi vai trò'),
+                  ),
+                  PopupMenuItem(
+                    value: _UserAction.toggleVerify,
+                    child: Text(
+                      u.isEmailVerified
+                          ? 'Đánh dấu chưa xác thực'
+                          : 'Đánh dấu đã xác thực',
                     ),
                   ),
-                );
-              }
-            },
-          ),
-        ],
-      ),
-      onTap: () async {
-        final updated = await _showEditDialog(context, u);
-        if (!context.mounted) return;
-        if (updated == true) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('User updated')));
-          context.read<UserProvider>().fetch(
-            search: _search.text,
-            role: _role,
-            verified: _verified,
-          );
-        }
-      },
-    );
-  }
-
-  Future<bool?> _showCreateDialog(BuildContext context) async {
-    final nameCtrl = TextEditingController();
-    final emailCtrl = TextEditingController();
-    final passCtrl = TextEditingController();
-    String role = 'MEMBER';
-    bool verified = false;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Tạo người dùng'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameCtrl,
-                decoration: const InputDecoration(labelText: 'Họ và tên'),
-              ),
-              TextField(
-                controller: emailCtrl,
-                decoration: const InputDecoration(labelText: 'Email'),
-              ),
-              TextField(
-                controller: passCtrl,
-                decoration: const InputDecoration(labelText: 'Mật khẩu'),
-                obscureText: true,
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Text('Vai trò: '),
-                  const SizedBox(width: 8),
-                  DropdownButton<String>(
-                    value: role,
-                    items: const [
-                      DropdownMenuItem(value: 'ADMIN', child: Text('ADMIN')),
-                      DropdownMenuItem(
-                        value: 'MANAGER',
-                        child: Text('MANAGER'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'TRAINER',
-                        child: Text('TRAINER'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'RECEPTION',
-                        child: Text('RECEPTION'),
-                      ),
-                      DropdownMenuItem(value: 'MEMBER', child: Text('MEMBER')),
-                    ],
-                    onChanged: (v) => role = v ?? role,
+                  const PopupMenuItem(
+                    value: _UserAction.resetPassword,
+                    child: Text('Đặt lại mật khẩu'),
                   ),
-                ],
-              ),
-              Row(
-                children: [
-                  Checkbox(
-                    value: verified,
-                    onChanged: (v) => verified = v ?? verified,
+                  const PopupMenuDivider(),
+                  const PopupMenuItem(
+                    value: _UserAction.delete,
+                    child: Text(
+                      'Xoá người dùng',
+                      style: TextStyle(color: Colors.red),
+                    ),
                   ),
-                  const Text('Đã xác thực email'),
                 ],
               ),
             ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Huỷ'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Tạo'),
-          ),
-        ],
       ),
     );
-    if (ok == true) {
-      if (!context.mounted) return false;
-      final fullName = nameCtrl.text.trim();
-      final email = emailCtrl.text.trim();
-      final password = passCtrl.text.trim();
-      if (fullName.isEmpty || email.isEmpty || password.length < 6) {
-        return false;
-      }
-      final done = await context.read<UserProvider>().create(
-        fullName: fullName,
-        email: email,
-        password: password,
-        role: role,
-        verified: verified,
-      );
-      if (!context.mounted) return false;
-      return done;
+  }
+
+  String _initialsOf(String name) {
+    if (name.trim().isEmpty) return '?';
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length == 1) return parts.first[0].toUpperCase();
+    return (parts.first[0] + parts.last[0]).toUpperCase();
+  }
+
+  // =================== ACTIONS ===================
+
+  Future<void> _handleAction(_UserAction action, UserModel u) async {
+    final provider = context.read<UserProvider>();
+
+    switch (action) {
+      case _UserAction.changeRole:
+        final newRole = await _pickRole(u.role);
+        if (newRole == null || newRole == u.role) return;
+        final ok = await provider.updateRole(u.id, newRole);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              ok ? 'Đã cập nhật vai trò' : 'Cập nhật vai trò thất bại',
+            ),
+          ),
+        );
+        break;
+
+      case _UserAction.toggleVerify:
+        final target = !u.isEmailVerified;
+        final ok = await provider.setVerified(u.id, target);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              target
+                  ? (ok
+                        ? 'Đã đánh dấu email đã xác thực'
+                        : 'Cập nhật trạng thái email thất bại')
+                  : (ok
+                        ? 'Đã đánh dấu email chưa xác thực'
+                        : 'Cập nhật trạng thái email thất bại'),
+            ),
+          ),
+        );
+        break;
+
+      case _UserAction.resetPassword:
+        final newPass = await _askNewPassword();
+        if (newPass == null || newPass.trim().isEmpty) return;
+        final ok = await provider.setPassword(u.id, newPass.trim());
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              ok ? 'Đã đặt lại mật khẩu' : 'Đặt lại mật khẩu thất bại',
+            ),
+          ),
+        );
+        break;
+
+      case _UserAction.delete:
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Xoá người dùng?'),
+            content: Text('Bạn có chắc muốn xoá "${u.fullName}"?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Huỷ'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Xoá'),
+              ),
+            ],
+          ),
+        );
+        if (confirm != true) return;
+        final ok = await provider.remove(u.id);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(ok ? 'Đã xoá người dùng' : 'Xoá người dùng thất bại'),
+          ),
+        );
+        break;
     }
-    return null;
   }
 
-  Future<bool?> _showEditDialog(BuildContext context, UserModel u) async {
-    final nameCtrl = TextEditingController(text: u.fullName);
-    final emailCtrl = TextEditingController(text: u.email);
-    final ok = await showDialog<bool>(
+  Future<String?> _pickRole(String current) async {
+    String role = current;
+    return showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Sửa người dùng'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameCtrl,
-                decoration: const InputDecoration(labelText: 'Họ và tên'),
-              ),
-              TextField(
-                controller: emailCtrl,
-                decoration: const InputDecoration(labelText: 'Email'),
-              ),
+        title: const Text('Chọn vai trò'),
+        content: StatefulBuilder(
+          builder: (ctx, setStateDialog) => DropdownButton<String>(
+            value: role,
+            isExpanded: true,
+            items: const [
+              DropdownMenuItem(value: 'ADMIN', child: Text('ADMIN')),
+              DropdownMenuItem(value: 'MANAGER', child: Text('MANAGER')),
+              DropdownMenuItem(value: 'TRAINER', child: Text('TRAINER')),
+              DropdownMenuItem(value: 'RECEPTION', child: Text('RECEPTION')),
+              DropdownMenuItem(value: 'MEMBER', child: Text('MEMBER')),
             ],
+            onChanged: (v) => setStateDialog(() => role = v ?? role),
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(context),
             child: const Text('Huỷ'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(context, role),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<String?> _askNewPassword() async {
+    final ctrl = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Đặt lại mật khẩu'),
+        content: TextField(
+          controller: ctrl,
+          decoration: const InputDecoration(
+            labelText: 'Mật khẩu mới',
+            hintText: '••••••',
+          ),
+          obscureText: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Huỷ'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, ctrl.text),
             child: const Text('Lưu'),
           ),
         ],
       ),
     );
-    if (ok == true) {
-      if (!context.mounted) return false;
-      final fullName = nameCtrl.text.trim();
-      final email = emailCtrl.text.trim();
-      if (fullName.isEmpty || email.isEmpty) {
-        return false;
-      }
-      final done = await context.read<UserProvider>().update(
-        u.id,
-        fullName: fullName,
-        email: email,
-      );
-      if (!context.mounted) return false;
-      return done;
-    }
-    return null;
   }
 
-  Future<String?> _promptText(
-    BuildContext context, {
-    required String title,
-  }) async {
-    final ctrl = TextEditingController();
-    final ok = await showDialog<bool>(
+  // ===== Dialog tạo user mới =====
+  Future<void> _openCreateUserDialog() async {
+    final formKey = GlobalKey<FormState>();
+    final nameCtrl = TextEditingController();
+    final emailCtrl = TextEditingController();
+    final passCtrl = TextEditingController();
+    String role = 'MEMBER';
+    bool verified = false;
+
+    final result = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text(title),
-        content: TextField(controller: ctrl, obscureText: true),
+        title: const Text('Thêm người dùng'),
+        content: Form(
+          key: formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Họ và tên'),
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'Bắt buộc' : null,
+                ),
+                TextFormField(
+                  controller: emailCtrl,
+                  decoration: const InputDecoration(labelText: 'Email'),
+                  keyboardType: TextInputType.emailAddress,
+                  validator: (v) => (v == null || !v.contains('@'))
+                      ? 'Email không hợp lệ'
+                      : null,
+                ),
+                TextFormField(
+                  controller: passCtrl,
+                  decoration: const InputDecoration(labelText: 'Mật khẩu'),
+                  obscureText: true,
+                  validator: (v) =>
+                      (v == null || v.length < 6) ? 'Ít nhất 6 ký tự' : null,
+                ),
+                const SizedBox(height: 8),
+                StatefulBuilder(
+                  builder: (ctx, setStateDialog) => Column(
+                    children: [
+                      DropdownButtonFormField<String>(
+                        value: role,
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'ADMIN',
+                            child: Text('ADMIN'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'MANAGER',
+                            child: Text('MANAGER'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'TRAINER',
+                            child: Text('TRAINER'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'RECEPTION',
+                            child: Text('RECEPTION'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'MEMBER',
+                            child: Text('MEMBER'),
+                          ),
+                        ],
+                        onChanged: (v) =>
+                            setStateDialog(() => role = v ?? role),
+                        decoration: const InputDecoration(labelText: 'Vai trò'),
+                      ),
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Đánh dấu email đã xác thực'),
+                        value: verified,
+                        onChanged: (v) =>
+                            setStateDialog(() => verified = v ?? false),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: const Text('Huỷ'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Save'),
+            onPressed: () async {
+              if (!(formKey.currentState?.validate() ?? false)) return;
+              final ok = await context.read<UserProvider>().create(
+                fullName: nameCtrl.text.trim(),
+                email: emailCtrl.text.trim(),
+                password: passCtrl.text.trim(),
+                role: role,
+                verified: verified,
+              );
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    ok ? 'Đã tạo người dùng mới' : 'Tạo người dùng thất bại',
+                  ),
+                ),
+              );
+              if (ok) Navigator.pop(context, true);
+            },
+            child: const Text('Tạo'),
           ),
         ],
       ),
     );
-    if (ok == true) {
-      final v = ctrl.text.trim();
-      if (v.length < 6) return null;
-      return v;
+
+    // nếu result == true thì đã thêm thành công, danh sách đã được update trong provider
+    if (result == true) {
+      // có thể reload lại nếu thích
+      _reload();
     }
-    return null;
   }
 }
+
+enum _UserAction { changeRole, toggleVerify, resetPassword, delete }

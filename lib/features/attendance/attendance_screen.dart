@@ -17,6 +17,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   final _memberIdCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
 
+  /// id thành viên được chọn để check-out
+  String? _selectedMemberId;
+
   @override
   void initState() {
     super.initState();
@@ -39,6 +42,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     final vm = context.watch<AttendanceProvider>();
     final colorScheme = Theme.of(context).colorScheme;
 
+    // Gom lại để mỗi học viên chỉ còn 1 bản ghi mới nhất
+    final latestList = _buildLatestPerMember(vm.items);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Điểm danh'),
@@ -47,6 +53,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
+              setState(() {
+                _selectedMemberId = null;
+              });
               context.read<AttendanceProvider>().fetch(status: _status);
               context.read<AttendanceProvider>().fetchOverview();
             },
@@ -91,7 +100,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                           ),
                         ],
                         onChanged: (v) {
-                          setState(() => _status = v);
+                          setState(() {
+                            _status = v;
+                            _selectedMemberId = null;
+                          });
                           context.read<AttendanceProvider>().fetch(status: v);
                         },
                       ),
@@ -99,7 +111,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  // Ô nhập mã + nút chọn HV + nút checkin/checkout
+                  // Ô nhập mã + nút chọn HV + check-in / check-out
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
@@ -107,14 +119,15 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                         child: TextField(
                           controller: _memberIdCtrl,
                           decoration: const InputDecoration(
-                            labelText: 'Mã khách hàng / SĐT',
+                            labelText: 'Mã khách hàng / SĐT (Check-in)',
                             hintText: 'VD: 0903xxxxxx hoặc mã thẻ',
                             filled: true,
                           ),
                         ),
                       ),
                       const SizedBox(width: 6),
-                      // Nút mở danh sách hội viên
+
+                      // Nút mở bottom sheet chọn học viên
                       InkWell(
                         onTap: _openMemberPicker,
                         borderRadius: BorderRadius.circular(999),
@@ -125,7 +138,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                         ),
                       ),
                       const SizedBox(width: 6),
-                      // Nút check-in
+
+                      // Nút CHECK-IN
                       InkWell(
                         onTap: _onCheckIn,
                         borderRadius: BorderRadius.circular(999),
@@ -135,22 +149,29 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                           child: const Icon(Icons.login, color: Colors.white),
                         ),
                       ),
+
                       const SizedBox(width: 6),
-                      // Nút check-out
+
+                      // Nút CHECK-OUT (chỉ sáng khi chọn học viên đang tập)
                       InkWell(
-                        onTap: _onCheckOut,
+                        onTap: _selectedMemberId == null ? null : _onCheckOut,
                         borderRadius: BorderRadius.circular(999),
                         child: CircleAvatar(
                           radius: 24,
-                          backgroundColor: Colors.grey.shade300,
-                          child: const Icon(
+                          backgroundColor: _selectedMemberId == null
+                              ? Colors.grey.shade300
+                              : Colors.green.shade600,
+                          child: Icon(
                             Icons.logout,
-                            color: Colors.black87,
+                            color: _selectedMemberId == null
+                                ? Colors.black87
+                                : Colors.white,
                           ),
                         ),
                       ),
                     ],
                   ),
+
                   const SizedBox(height: 8),
                   TextField(
                     controller: _noteCtrl,
@@ -159,12 +180,18 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       filled: true,
                     ),
                   ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    '• Check-in: nhập mã khách hàng / SĐT rồi bấm nút check-in.\n'
+                    '• Check-out: bấm chọn học viên đang tập trong danh sách → nút check-out sẽ sáng lên.',
+                    style: TextStyle(fontSize: 11, color: Colors.black54),
+                  ),
                 ],
               ),
             ),
           ),
 
-          // ====== CHIP OVERVIEW HÔM NAY ======
+          // ====== OVERVIEW HÔM NAY ======
           if (vm.overview != null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -181,7 +208,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
           const SizedBox(height: 8),
 
-          // ====== DANH SÁCH ĐIỂM DANH ======
+          // ====== DANH SÁCH (MỖI NGƯỜI 1 DÒNG) ======
           Expanded(
             child: vm.loading
                 ? const Center(child: CircularProgressIndicator())
@@ -194,9 +221,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   )
                 : ListView.separated(
                     padding: const EdgeInsets.only(top: 8),
-                    itemCount: vm.items.length,
+                    itemCount: latestList.length,
                     separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (ctx, i) => _tile(context, vm.items[i]),
+                    itemBuilder: (ctx, i) => _tile(context, latestList[i]),
                   ),
           ),
         ],
@@ -214,43 +241,53 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       );
       return;
     }
-    final ok = await context.read<AttendanceProvider>().checkIn(
-      code,
-      note: _noteCtrl.text.trim(),
-    );
+
+    final vm = context.read<AttendanceProvider>();
+    final ok = await vm.checkIn(code, note: _noteCtrl.text.trim());
+
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(ok ? 'Check-in thành công' : 'Check-in thất bại')),
-    );
+
     if (ok) {
-      context.read<AttendanceProvider>().fetch(status: _status);
-      context.read<AttendanceProvider>().fetchOverview();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Check-in thành công')));
+      vm.fetch(status: _status);
+      vm.fetchOverview();
+      _memberIdCtrl.clear();
       _noteCtrl.clear();
+    } else {
+      final msg = vm.lastErrorMessage ?? 'Check-in thất bại';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     }
   }
 
   Future<void> _onCheckOut() async {
-    final code = _memberIdCtrl.text.trim();
-    if (code.isEmpty) {
+    final selectedId = _selectedMemberId;
+    if (selectedId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nhập mã khách hàng / SĐT trước')),
+        const SnackBar(
+          content: Text('Hãy chọn 1 học viên đang tập để check-out'),
+        ),
       );
       return;
     }
-    final ok = await context.read<AttendanceProvider>().checkOut(
-      code,
-      note: _noteCtrl.text.trim(),
-    );
+
+    final vm = context.read<AttendanceProvider>();
+    final ok = await vm.checkOut(selectedId, note: _noteCtrl.text.trim());
+
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(ok ? 'Check-out thành công' : 'Check-out thất bại'),
-      ),
-    );
+
     if (ok) {
-      context.read<AttendanceProvider>().fetch(status: _status);
-      context.read<AttendanceProvider>().fetchOverview();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Check-out thành công')));
+      setState(() => _selectedMemberId = null);
+      vm.fetch(status: _status);
+      vm.fetchOverview();
       _noteCtrl.clear();
+    } else {
+      final msg = vm.lastErrorMessage ?? 'Check-out thất bại';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     }
   }
 
@@ -263,18 +300,16 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (ctx) {
-        return _MemberPickerSheet();
-      },
+      builder: (ctx) => _MemberPickerSheet(),
     );
 
     if (selected != null) {
-      // Ưu tiên fill theo SĐT, nếu không có thì dùng id
+      // Ưu tiên fill SĐT, nếu không có thì dùng id
       _memberIdCtrl.text = selected.phone ?? selected.id;
     }
   }
 
-  // =================== WIDGET PHỤ ===================
+  // =================== UI PHỤ ===================
 
   Widget _chip(String label, int value) {
     return Chip(
@@ -285,33 +320,76 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
   Widget _tile(BuildContext context, AttendanceModel a) {
     final isInGym = a.checkoutTime == null;
+    final selected = _selectedMemberId == a.memberId;
+
     final timeStr = a.checkinTime.toLocal().toString().substring(11, 16);
     final subtitle = isInGym
         ? 'Đang tập • từ $timeStr'
         : 'Đã xong • ${a.workoutDurationMinutes ?? 0} phút';
 
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: isInGym ? Colors.green.shade50 : Colors.grey.shade200,
-        child: Icon(
-          isInGym ? Icons.fitness_center : Icons.check,
-          color: isInGym ? Colors.green : Colors.grey.shade700,
-        ),
-      ),
-      title: Text(a.memberName ?? a.memberId),
-      subtitle: Text(subtitle),
-      trailing: Text(
-        isInGym ? 'Đang tập' : 'Đã hoàn tất',
-        style: TextStyle(
-          fontWeight: FontWeight.w600,
-          color: isInGym ? Colors.green : Colors.grey.shade800,
+    return InkWell(
+      onTap: () {
+        if (!isInGym) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Học viên này đã hoàn tất buổi tập')),
+          );
+          return;
+        }
+
+        setState(() {
+          _selectedMemberId = selected ? null : a.memberId;
+        });
+      },
+      child: Container(
+        color: selected ? Colors.green.shade50 : null,
+        child: ListTile(
+          leading: CircleAvatar(
+            backgroundColor: isInGym
+                ? Colors.green.shade50
+                : Colors.grey.shade200,
+            child: Icon(
+              isInGym ? Icons.fitness_center : Icons.check,
+              color: isInGym ? Colors.green : Colors.grey.shade700,
+            ),
+          ),
+          title: Text(a.memberName ?? a.memberId),
+          subtitle: Text(subtitle),
+          trailing: Text(
+            isInGym ? 'Đang tập' : 'Đã hoàn tất',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: isInGym ? Colors.green : Colors.grey.shade800,
+            ),
+          ),
         ),
       ),
     );
   }
+
+  /// Mỗi học viên chỉ còn 1 dòng – bản ghi mới nhất
+  List<AttendanceModel> _buildLatestPerMember(List<AttendanceModel> list) {
+    final Map<String, AttendanceModel> map = {};
+
+    for (final a in list) {
+      final key = a.memberId;
+      final existing = map[key];
+      if (existing == null) {
+        map[key] = a;
+      } else {
+        if (a.checkinTime.isAfter(existing.checkinTime)) {
+          map[key] = a;
+        }
+      }
+    }
+
+    final result = map.values.toList()
+      ..sort((a, b) => b.checkinTime.compareTo(a.checkinTime));
+
+    return result;
+  }
 }
 
-/// Model nhẹ dùng cho picker
+/// Model nhẹ dùng để pick hội viên
 class MemberLite {
   final String id;
   final String name;
@@ -331,7 +409,7 @@ class MemberLite {
   }
 }
 
-/// BottomSheet chọn hội viên
+/// BottomSheet chọn hội viên – chỉ hiện member có gói tập đang hoạt động
 class _MemberPickerSheet extends StatefulWidget {
   @override
   State<_MemberPickerSheet> createState() => _MemberPickerSheetState();
@@ -347,7 +425,7 @@ class _MemberPickerSheetState extends State<_MemberPickerSheet> {
   @override
   void initState() {
     super.initState();
-    _load(); // load danh sách lần đầu
+    _load(); // load lần đầu
   }
 
   Future<void> _load() async {
@@ -355,22 +433,24 @@ class _MemberPickerSheetState extends State<_MemberPickerSheet> {
       _loading = true;
       _error = null;
     });
-    try {
-      final res = await _api.getJson(
-        '/api/members',
-        query: {
-          if (_searchCtrl.text.trim().isNotEmpty)
-            'keyword': _searchCtrl.text.trim(),
-          'limit': '20',
-          'page': '1',
-        },
-      );
 
-      final raw =
-          res['items'] ??
-          res['members'] ??
-          res['data'] ??
-          res; // để tương thích nhiều kiểu response
+    try {
+      final query = <String, String>{
+        'limit': '20',
+        'page': '1',
+        // 🔴 Chỉ lấy member có gói tập đang hoạt động
+        'hasActivePackage': 'true',
+      };
+
+      final keyword = _searchCtrl.text.trim();
+      if (keyword.isNotEmpty) {
+        // backend MemberService dùng param 'search'
+        query['search'] = keyword;
+      }
+
+      final res = await _api.getJson('/api/members', query: query);
+
+      final raw = res['members'] ?? res['items'] ?? res['data'] ?? res;
 
       final list = (raw as List)
           .map((e) => MemberLite.fromJson(Map<String, dynamic>.from(e)))
@@ -419,7 +499,7 @@ class _MemberPickerSheetState extends State<_MemberPickerSheet> {
             ),
             const SizedBox(height: 12),
             const Text(
-              'Chọn học viên',
+              'Chọn học viên (đã có gói tập)',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 12),
@@ -462,7 +542,11 @@ class _MemberPickerSheetState extends State<_MemberPickerSheet> {
                       ),
                     )
                   : _items.isEmpty
-                  ? const Center(child: Text('Không tìm thấy học viên nào'))
+                  ? const Center(
+                      child: Text(
+                        'Không tìm thấy học viên nào có gói tập đang hoạt động',
+                      ),
+                    )
                   : ListView.separated(
                       itemCount: _items.length,
                       separatorBuilder: (_, __) => const Divider(height: 1),
@@ -476,9 +560,7 @@ class _MemberPickerSheetState extends State<_MemberPickerSheet> {
                           ),
                           title: Text(m.name),
                           subtitle: Text(
-                            m.phone != null && m.phone!.isNotEmpty
-                                ? m.phone!
-                                : m.id,
+                            m.phone?.isNotEmpty == true ? m.phone! : m.id,
                           ),
                           onTap: () {
                             Navigator.of(context).pop(m);

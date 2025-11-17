@@ -8,7 +8,13 @@ class AttendanceProvider extends ChangeNotifier {
   late final AttendanceService _service = AttendanceService(_api);
 
   bool loading = false;
+
+  /// Lỗi chung (dùng cho màn list / overview)
   String? error;
+
+  /// Lỗi chi tiết của lần thao tác gần nhất (check-in / check-out)
+  String? lastErrorMessage;
+
   List<AttendanceModel> items = [];
   Map<String, dynamic> pagination = {};
   AttendanceOverview? overview;
@@ -48,45 +54,78 @@ class AttendanceProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
-  /// ✅ Hàm cũ: check-in theo memberId (dùng ở chỗ khác vẫn OK)
+  // ================== ACTIONS ==================
+
+  /// Check-in theo memberId (id trong hệ thống)
   Future<bool> checkIn(String memberId, {String? note}) async {
     try {
       error = null;
+      lastErrorMessage = null;
       notifyListeners();
+
       await _service.checkIn(memberId, note: note);
       return true;
     } catch (e) {
-      error = e.toString();
+      final msg = _extractErrorMessage(e);
+      error = msg;
+      lastErrorMessage = msg;
       notifyListeners();
       return false;
     }
   }
 
-  /// ✅ Hàm MỚI: check-in bằng mã / email / SĐT / id
-  /// gọi tới API: POST /api/attendance/checkin-by-code
+  /// Check-in bằng mã / SĐT / email / id tuỳ backend support
   Future<bool> checkInByCode(String identifier, {String? note}) async {
     try {
       error = null;
+      lastErrorMessage = null;
       notifyListeners();
+
       await _service.checkInByCode(identifier, note: note);
       return true;
     } catch (e) {
-      error = e.toString();
+      final msg = _extractErrorMessage(e);
+      error = msg;
+      lastErrorMessage = msg;
       notifyListeners();
       return false;
     }
   }
 
+  /// Check-out theo memberId
   Future<bool> checkOut(String memberId, {String? note}) async {
     try {
       error = null;
+      lastErrorMessage = null;
       notifyListeners();
+
       await _service.checkOut(memberId, note: note);
       return true;
     } catch (e) {
-      error = e.toString();
+      final msg = _extractErrorMessage(e);
+      error = msg;
+      lastErrorMessage = msg;
       notifyListeners();
       return false;
     }
+  }
+
+  // ================== HELPER ==================
+
+  /// Cố gắng lấy message từ response backend, nếu không được thì fallback e.toString()
+  String _extractErrorMessage(Object e) {
+    try {
+      final dynamic ex =
+          e; // dùng dynamic để không cần import Dio / ApiException
+      final data = ex.response?.data;
+
+      if (data is Map) {
+        if (data['message'] is String) return data['message'] as String;
+        if (data['error'] is String) return data['error'] as String;
+      }
+    } catch (_) {
+      // ignore parse error
+    }
+    return e.toString();
   }
 }
