@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:gym_frontend/features/packages/package_provider.dart';
+// Đã gỡ Provider quản trị. Hiển thị danh sách gói tập dạng chỉ đọc trực tiếp từ API.
+import 'package:gym_frontend/core/api_client.dart';
 import 'package:gym_frontend/features/packages/package_model.dart';
-import 'package:gym_frontend/features/packages/save_package_screen.dart';
+import 'package:gym_frontend/features/packages/package_detail_screen.dart';
+import 'package:gym_frontend/core/env.dart';
 
 class PackagesScreen extends StatefulWidget {
   const PackagesScreen({super.key});
@@ -13,18 +14,40 @@ class PackagesScreen extends StatefulWidget {
 
 class _PackagesScreenState extends State<PackagesScreen> {
   String? _status;
+  bool _loading = true;
+  String? _error;
+  List<PackageModel> _packages = [];
+  final _api = ApiClient();
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => context.read<PackageProvider>().fetch(),
-    );
+    _fetch();
+  }
+
+  Future<void> _fetch({String? status}) async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final res = await _api.getJson('/api/packages?page=1&limit=100');
+      final raw = (res['items'] ?? res['data'] ?? res['results'] ?? []) as List;
+      final list = raw
+          .map((e) => PackageModel.fromMap(Map<String, dynamic>.from(e as Map)))
+          .toList();
+      setState(() {
+        _packages = list;
+      });
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final vm = context.watch<PackageProvider>();
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -35,22 +58,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Tải lại',
-            onPressed: () =>
-                context.read<PackageProvider>().fetch(status: _status),
-          ),
-          IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: 'Thêm gói tập',
-            onPressed: () async {
-              final ok = await Navigator.push<bool>(
-                context,
-                MaterialPageRoute(builder: (_) => const SavePackageScreen()),
-              );
-              if (!context.mounted) return;
-              if (ok == true) {
-                context.read<PackageProvider>().fetch(status: _status);
-              }
-            },
+            onPressed: () => _fetch(status: _status),
           ),
         ],
       ),
@@ -97,11 +105,11 @@ class _PackagesScreenState extends State<PackagesScreen> {
                         ],
                         onChanged: (v) {
                           setState(() => _status = v);
-                          context.read<PackageProvider>().fetch(status: v);
+                          _fetch(status: v);
                         },
                       ),
                       const Spacer(),
-                      if (!vm.loading)
+                      if (!_loading)
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 10,
@@ -112,7 +120,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
                             borderRadius: BorderRadius.circular(999),
                           ),
                           child: Text(
-                            'Tổng: ${vm.items.length}',
+                            'Tổng: ${_filtered().length}',
                             style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -133,26 +141,26 @@ class _PackagesScreenState extends State<PackagesScreen> {
 
           // ====== DANH SÁCH GÓI TẬP ======
           Expanded(
-            child: vm.loading
+            child: _loading
                 ? const Center(child: CircularProgressIndicator())
-                : vm.error != null
+                : _error != null
                 ? Center(
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Text(
-                        vm.error!,
+                        _error!,
                         textAlign: TextAlign.center,
                         style: const TextStyle(color: Colors.red),
                       ),
                     ),
                   )
-                : vm.items.isEmpty
+                : _filtered().isEmpty
                 ? _emptyState(context)
                 : ListView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                    itemCount: vm.items.length,
+                    itemCount: _filtered().length,
                     itemBuilder: (ctx, i) {
-                      final p = vm.items[i];
+                      final p = _filtered()[i];
                       return _packageCard(context, p, colorScheme);
                     },
                   ),
@@ -160,6 +168,11 @@ class _PackagesScreenState extends State<PackagesScreen> {
         ],
       ),
     );
+  }
+
+  List<PackageModel> _filtered() {
+    if (_status == null) return _packages;
+    return _packages.where((p) => p.status == _status).toList();
   }
 
   // ====== CARD GÓI TẬP ======
@@ -171,6 +184,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
   ) {
     final statusColor = _statusColor(p.status, colorScheme);
     final statusText = _statusVi(p.status);
+    final resolvedImage = _resolveImageUrl(p.imageUrl);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -181,21 +195,19 @@ class _PackagesScreenState extends State<PackagesScreen> {
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
           onTap: () async {
-            final ok = await Navigator.push<bool>(
+            await Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => SavePackageScreen(editing: p)),
+              MaterialPageRoute(
+                builder: (_) => PackageDetailScreen(package: p),
+              ),
             );
-            if (!context.mounted) return;
-            if (ok == true) {
-              context.read<PackageProvider>().fetch(status: _status);
-            }
           },
           child: Padding(
             padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Icon trái
+                // Hình/biểu tượng gói
                 Container(
                   width: 40,
                   height: 40,
@@ -203,11 +215,18 @@ class _PackagesScreenState extends State<PackagesScreen> {
                     color: statusColor.withOpacity(0.14),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(
-                    Icons.fitness_center,
-                    size: 22,
-                    color: statusColor,
-                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: (resolvedImage == null)
+                      ? Icon(Icons.fitness_center, size: 22, color: statusColor)
+                      : Image.network(
+                          resolvedImage,
+                          fit: BoxFit.cover,
+                          errorBuilder: (ctx, err, st) => Icon(
+                            Icons.fitness_center,
+                            size: 22,
+                            color: statusColor,
+                          ),
+                        ),
                 ),
                 const SizedBox(width: 10),
 
@@ -306,15 +325,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
                 ),
 
                 // Actions
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.more_vert, size: 20),
-                      onPressed: () => _openPackageMenu(context, p),
-                    ),
-                  ],
-                ),
+                const SizedBox.shrink(),
               ],
             ),
           ),
@@ -323,76 +334,17 @@ class _PackagesScreenState extends State<PackagesScreen> {
     );
   }
 
-  void _openPackageMenu(BuildContext context, PackageModel p) async {
-    final action = await showModalBottomSheet<String>(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (_) {
-        return SafeArea(
-          child: Wrap(
-            children: [
-              ListTile(
-                leading: const Icon(Icons.edit),
-                title: const Text('Chỉnh sửa gói tập'),
-                onTap: () => Navigator.pop(context, 'edit'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.delete_outline, color: Colors.red),
-                title: const Text(
-                  'Xoá gói tập',
-                  style: TextStyle(color: Colors.red),
-                ),
-                onTap: () => Navigator.pop(context, 'delete'),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-
-    if (!context.mounted || action == null) return;
-
-    if (action == 'edit') {
-      final ok = await Navigator.push<bool>(
-        context,
-        MaterialPageRoute(builder: (_) => SavePackageScreen(editing: p)),
-      );
-      if (!context.mounted) return;
-      if (ok == true) {
-        context.read<PackageProvider>().fetch(status: _status);
-      }
-    } else if (action == 'delete') {
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('Xoá gói tập?'),
-          content: Text('Xoá "${p.name}"?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Huỷ'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Xoá'),
-            ),
-          ],
-        ),
-      );
-      if (ok == true) {
-        if (!context.mounted) return;
-        final done = await context.read<PackageProvider>().remove(p.id);
-        if (!context.mounted) return;
-        if (!done) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Xoá không thành công')));
-        }
-      }
-    }
+  String? _resolveImageUrl(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    final r = raw.trim();
+    if (r.startsWith('http://') || r.startsWith('https://')) return r;
+    // Treat as relative path from API base
+    final base = apiBaseUrl();
+    if (r.startsWith('/')) return '$base$r';
+    return '$base/$r';
   }
+
+  // Menu chỉnh sửa/xoá đã bỏ trên mobile; chỉ xem chi tiết.
 
   // ====== EMPTY STATE ======
 
@@ -415,7 +367,7 @@ class _PackagesScreenState extends State<PackagesScreen> {
             ),
             const SizedBox(height: 4),
             const Text(
-              'Hãy bấm nút dấu "+" ở góc trên để thêm gói tập đầu tiên.',
+              'Hiện chưa có gói tập nào để hiển thị.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 12, color: Colors.black54),
             ),

@@ -11,35 +11,40 @@ import 'features/auth/signup_provider.dart';
 // Đổi tên import 'signup' thành 'signupScreen' để rõ ràng hơn
 import 'features/auth/signup_screen.dart' as signupScreen;
 import 'features/auth/verify_email_screen.dart';
-import 'features/dashboards/admin_dashboard.dart';
+// import 'features/dashboards/admin_dashboard.dart'; // mobile không dùng nữa
 // import 'features/dashboards/manager_dashboard.dart'; // ĐÃ XÓA
 import 'features/dashboards/trainer_dashboard.dart';
 // import 'features/dashboards/reception_dashboard.dart'; // ĐÃ XÓA
 import 'features/member/member_home_screen.dart';
-import 'features/members/member_provider.dart';
-import 'features/members/members_screen.dart';
-import 'features/packages/package_provider.dart';
-import 'features/packages/packages_screen.dart';
-import 'features/employees/employee_provider.dart';
-import 'features/employees/employees_screen.dart';
+// import 'features/members/member_provider.dart';
+// import 'features/members/members_screen.dart'; // removed from mobile
+// import 'features/packages/package_provider.dart';
+// import 'features/packages/packages_screen.dart'; // removed from mobile
+// import 'features/employees/employee_provider.dart';
+// import 'features/employees/employees_screen.dart'; // removed from mobile
 import 'features/discounts/discount_provider.dart';
-import 'features/discounts/discounts_screen.dart';
+// import 'features/discounts/discounts_screen.dart'; // removed from mobile
 import 'features/work_schedules/work_schedule_provider.dart';
 import 'features/work_schedules/work_schedules_screen.dart';
-import 'features/reception/member_create_screen.dart';
-import 'features/reception/registration_create_screen.dart';
+// import 'features/reception/member_create_screen.dart'; // removed from mobile
+// import 'features/reception/registration_create_screen.dart'; // removed from mobile
 import 'features/registrations/registration_provider.dart';
-import 'features/registrations/registrations_screen.dart';
+// import 'features/registrations/registrations_screen.dart'; // removed from mobile
 import 'features/attendance/attendance_provider.dart';
 import 'features/attendance/attendance_screen.dart';
-import 'features/users/users_screen.dart';
-import 'features/users/user_provider.dart';
+import 'features/attendance/qr_checkin_screen.dart';
+// import 'features/users/users_screen.dart'; // removed from mobile
+// import 'features/users/user_provider.dart';
 import 'features/member/member_register_package_screen.dart';
 import 'features/discounts/active_discounts_screen.dart';
 import 'features/member/member_current_package_screen.dart';
 import 'features/member/member_schedule_screen.dart';
 import 'features/trainer/my_students_screen.dart';
 import 'features/member/payment_result_screen.dart';
+import 'features/packages/packages_screen.dart';
+import 'features/member/member_profile_screen.dart';
+import 'features/payments/payment_history_screen.dart';
+import 'features/trainer/trainers_screen.dart';
 
 class GymApp extends StatefulWidget {
   const GymApp({super.key});
@@ -98,14 +103,10 @@ class _GymAppState extends State<GymApp> {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => SignupProvider()),
-        ChangeNotifierProvider(create: (_) => MemberProvider()),
-        ChangeNotifierProvider(create: (_) => PackageProvider()),
-        ChangeNotifierProvider(create: (_) => EmployeeProvider()),
         ChangeNotifierProvider(create: (_) => DiscountProvider()),
         ChangeNotifierProvider(create: (_) => WorkScheduleProvider()),
         ChangeNotifierProvider(create: (_) => RegistrationProvider()),
         ChangeNotifierProvider(create: (_) => AttendanceProvider()),
-        ChangeNotifierProvider(create: (_) => UserProvider()),
       ],
       child: MaterialApp(
         title: 'Gym Manager',
@@ -136,16 +137,17 @@ class _GymAppState extends State<GymApp> {
                 builder: (_) => const VerifyEmailScreen(),
               );
             // ... (Tất cả các case route khác của bạn giữ nguyên)
-            case '/members':
-              return MaterialPageRoute(builder: (_) => const MembersScreen());
-            case '/packages':
-              return MaterialPageRoute(builder: (_) => const PackagesScreen());
-            case '/employees':
-              return MaterialPageRoute(builder: (_) => const EmployeesScreen());
-            case '/discounts':
-              return MaterialPageRoute(builder: (_) => const DiscountsScreen());
-            case '/dash/admin':
-              return MaterialPageRoute(builder: (_) => const AdminDashboard());
+            // Admin/staff routes removed on mobile
+            // case '/members':
+            //   return MaterialPageRoute(builder: (_) => const MembersScreen());
+            // case '/packages':
+            //   return MaterialPageRoute(builder: (_) => const PackagesScreen());
+            // case '/employees':
+            //   return MaterialPageRoute(builder: (_) => const EmployeesScreen());
+            // case '/discounts':
+            //   return MaterialPageRoute(builder: (_) => const DiscountsScreen());
+            // case '/dash/admin': // Không còn dùng trên mobile
+            //   return MaterialPageRoute(builder: (_) => const AdminDashboard());
             // case '/dash/manager': // ĐÃ XÓA
             //   return MaterialPageRoute(
             //     builder: (_) => const ManagerDashboard(),
@@ -175,6 +177,18 @@ class _GymAppState extends State<GymApp> {
               return MaterialPageRoute(
                 builder: (_) => const MemberScheduleScreen(),
               );
+            case '/member/profile':
+              return MaterialPageRoute(
+                builder: (_) => const MemberProfileScreen(),
+              );
+            case '/packages':
+              return MaterialPageRoute(builder: (_) => const PackagesScreen());
+            case '/trainers':
+              return MaterialPageRoute(builder: (_) => const TrainersScreen());
+            case '/payments/history':
+              return MaterialPageRoute(
+                builder: (_) => const PaymentHistoryScreen(),
+              );
             case '/work-schedules':
               return MaterialPageRoute(
                 builder: (_) => const WorkSchedulesScreen(),
@@ -183,24 +197,26 @@ class _GymAppState extends State<GymApp> {
               return MaterialPageRoute(
                 builder: (_) => const MyStudentsScreen(),
               );
-            case '/members/create':
-              return MaterialPageRoute(
-                builder: (_) => const MemberCreateScreen(),
-              );
-            case '/registrations/create':
-              return MaterialPageRoute(
-                builder: (_) => const RegistrationCreateScreen(),
-              );
-            case '/registrations':
-              return MaterialPageRoute(
-                builder: (_) => const RegistrationsScreen(),
-              );
+            // case '/members/create':
+            //   return MaterialPageRoute(
+            //     builder: (_) => const MemberCreateScreen(),
+            //   );
+            // case '/registrations/create':
+            //   return MaterialPageRoute(
+            //     builder: (_) => const RegistrationCreateScreen(),
+            //   );
+            // case '/registrations':
+            //   return MaterialPageRoute(
+            //     builder: (_) => const RegistrationsScreen(),
+            //   );
             case '/attendance':
               return MaterialPageRoute(
                 builder: (_) => const AttendanceScreen(),
               );
-            case '/users':
-              return MaterialPageRoute(builder: (_) => const UsersScreen());
+            case '/attendance/qr-scan':
+              return MaterialPageRoute(builder: (_) => const QrCheckInScreen());
+            // case '/users':
+            //   return MaterialPageRoute(builder: (_) => const UsersScreen());
             case '/discounts/active':
               return MaterialPageRoute(
                 builder: (_) => const ActiveDiscountsScreen(),

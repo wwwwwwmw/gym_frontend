@@ -1,4 +1,6 @@
 import 'package:gym_frontend/core/api_client.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'attendance_model.dart';
 
 class AttendanceService {
@@ -75,5 +77,53 @@ class AttendanceService {
       },
     );
     return AttendanceModel.fromJson(res['attendance']);
+  }
+
+  /// ✅ Check-in bằng QR: token (JWT) + memberIdentifier (id/email/phone)
+  /// Nếu `endpoint` là URL đầy đủ trong QR -> gọi trực tiếp; nếu không -> gọi theo base API.
+  Future<AttendanceModel> qrCheckIn({
+    required String token,
+    required String memberIdentifier,
+    String? note,
+    String? endpoint,
+  }) async {
+    if (endpoint != null &&
+        (endpoint.startsWith('http://') || endpoint.startsWith('https://'))) {
+      final res = await http.post(
+        Uri.parse(endpoint),
+        headers: const {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'token': token,
+          'memberIdentifier': memberIdentifier,
+          if (note != null && note.isNotEmpty) 'note': note,
+        }),
+      );
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        try {
+          final body = jsonDecode(res.body);
+          throw ApiException(
+            body['message']?.toString() ?? 'HTTP ${res.statusCode}',
+            statusCode: res.statusCode,
+          );
+        } catch (_) {
+          throw ApiException(
+            'HTTP ${res.statusCode}: ${res.body}',
+            statusCode: res.statusCode,
+          );
+        }
+      }
+      final json = jsonDecode(res.body) as Map<String, dynamic>;
+      return AttendanceModel.fromJson(json['attendance']);
+    }
+
+    final json = await api.postJson(
+      '/api/attendance/qr-checkin',
+      body: {
+        'token': token,
+        'memberIdentifier': memberIdentifier,
+        if (note != null && note.isNotEmpty) 'note': note,
+      },
+    );
+    return AttendanceModel.fromJson(json['attendance']);
   }
 }

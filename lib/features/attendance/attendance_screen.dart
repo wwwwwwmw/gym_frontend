@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'attendance_provider.dart';
 import 'attendance_model.dart';
 import '../../core/api_client.dart';
+import 'qr_checkin_screen.dart';
 
 class AttendanceScreen extends StatefulWidget {
   const AttendanceScreen({super.key});
@@ -50,6 +51,21 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         title: const Text('Điểm danh'),
         centerTitle: true,
         actions: [
+          IconButton(
+            tooltip: 'Quét QR',
+            icon: const Icon(Icons.qr_code_scanner),
+            onPressed: () async {
+              final ok = await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const QrCheckInScreen()),
+              );
+              if (ok == true) {
+                if (!mounted) return;
+                final vm = context.read<AttendanceProvider>();
+                vm.fetch(status: _status);
+                vm.fetchOverview();
+              }
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {

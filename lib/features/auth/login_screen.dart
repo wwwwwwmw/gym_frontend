@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'auth_provider.dart';
 import 'forgot_password_screen.dart';
 import 'package:gym_frontend/features/member/member_home_screen.dart';
+import 'package:gym_frontend/features/auth/web_only_role_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -36,11 +37,16 @@ class _LoginScreenState extends State<LoginScreen> {
         final role = (auth.role ?? '').toUpperCase();
         switch (role) {
           case 'ADMIN':
-            Navigator.of(context).pushReplacementNamed('/dash/admin');
+          case 'MANAGER':
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (_) => WebOnlyRoleScreen(
+                  email: auth.user?['email'] ?? '',
+                  role: role,
+                ),
+              ),
+            );
             break;
-          // case 'MANAGER': // Đã bị xóa
-          //   Navigator.of(context).pushReplacementNamed('/dash/manager');
-          //   break;
           case 'TRAINER':
             Navigator.of(context).pushReplacementNamed('/dash/trainer');
             break;

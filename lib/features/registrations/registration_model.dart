@@ -46,15 +46,19 @@ class RegistrationModel {
     final trainerMap = _ensureMap(j['trainer_id']);
     final prefs = memberMap['schedulePreferences'] as Map<String, dynamic>?;
     return RegistrationModel(
-  id: (j['_id'] ?? j['id'] ?? '').toString(),
-  member: MemberRef.fromJson(memberMap),
-  package: PackageRef.fromJson(_ensureMap(j['package_id'])),
+      id: (j['_id'] ?? j['id'] ?? '').toString(),
+      member: MemberRef.fromJson(memberMap),
+      package: PackageRef.fromJson(_ensureMap(j['package_id'])),
       discount: j['discount_id'] != null
           ? DiscountRef.fromJson(_ensureMap(j['discount_id']))
           : null,
       trainer: trainerMap.isNotEmpty ? TrainerRef.fromJson(trainerMap) : null,
-      startDate: startRaw != null ? DateTime.parse(startRaw) : DateTime.fromMillisecondsSinceEpoch(0),
-      endDate: endRaw != null ? DateTime.parse(endRaw) : DateTime.fromMillisecondsSinceEpoch(0),
+      startDate: startRaw != null
+          ? DateTime.parse(startRaw)
+          : DateTime.fromMillisecondsSinceEpoch(0),
+      endDate: endRaw != null
+          ? DateTime.parse(endRaw)
+          : DateTime.fromMillisecondsSinceEpoch(0),
       paymentMethod: (payRaw ?? 'cash').toString(),
       originalPrice: origRaw ?? 0,
       discountAmount: discRaw ?? 0,
@@ -82,13 +86,18 @@ class TrainerRef {
   final String fullName;
   final String? email;
   final String? phone;
-  TrainerRef({required this.id, required this.fullName, this.email, this.phone});
+  TrainerRef({
+    required this.id,
+    required this.fullName,
+    this.email,
+    this.phone,
+  });
   factory TrainerRef.fromJson(Map<String, dynamic> j) => TrainerRef(
-        id: (j['_id'] ?? j['id'] ?? '').toString(),
-        fullName: (j['fullName'] ?? '').toString(),
-        email: j['email']?.toString(),
-        phone: j['phone']?.toString(),
-      );
+    id: (j['_id'] ?? j['id'] ?? '').toString(),
+    fullName: (j['fullName'] ?? '').toString(),
+    email: j['email']?.toString(),
+    phone: j['phone']?.toString(),
+  );
 }
 
 class MemberRef {
@@ -114,8 +123,19 @@ class PackageRef {
   final String name;
   final int? duration;
   final num? price;
+  final String? description;
+  final List<String>? features;
+  final String? imageUrl;
 
-  PackageRef({required this.id, required this.name, this.duration, this.price});
+  PackageRef({
+    required this.id,
+    required this.name,
+    this.duration,
+    this.price,
+    this.description,
+    this.features,
+    this.imageUrl,
+  });
 
   factory PackageRef.fromJson(Map<String, dynamic> j) {
     return PackageRef(
@@ -123,6 +143,9 @@ class PackageRef {
       name: (j['name'] ?? '').toString(),
       duration: j['duration'],
       price: j['price'],
+      description: j['description']?.toString(),
+      features: (j['features'] as List?)?.map((e) => e.toString()).toList(),
+      imageUrl: j['imageUrl']?.toString(),
     );
   }
 }

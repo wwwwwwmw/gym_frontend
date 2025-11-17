@@ -8,6 +8,7 @@ class PackageModel {
   final String status; // active|inactive|discontinued
   final int? maxSessions;
   final bool isPersonalTraining; // includes PT sessions / requires trainer
+  final String? imageUrl; // optional image URL from backend
 
   PackageModel({
     required this.id,
@@ -19,6 +20,7 @@ class PackageModel {
     required this.status,
     required this.maxSessions,
     required this.isPersonalTraining,
+    this.imageUrl,
   });
 
   factory PackageModel.fromMap(Map<String, dynamic> m) => PackageModel(
@@ -33,6 +35,7 @@ class PackageModel {
     status: (m['status'] ?? 'active') as String,
     maxSessions: m['maxSessions'] as int?,
     isPersonalTraining: (m['isPersonalTraining'] ?? false) as bool,
+    imageUrl: m['imageUrl'] as String?,
   );
 
   Map<String, dynamic> toMap() => {
@@ -44,5 +47,6 @@ class PackageModel {
     'status': status,
     if (maxSessions != null) 'maxSessions': maxSessions,
     'isPersonalTraining': isPersonalTraining,
+    if (imageUrl != null) 'imageUrl': imageUrl,
   };
 }

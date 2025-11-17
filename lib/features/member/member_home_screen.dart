@@ -87,14 +87,25 @@ class MemberHomeScreen extends StatelessWidget {
                   runSpacing: 20,
                   children: [
                     _featureItem(
-                      icon: Icons.calendar_month,
-                      label: "Đặt lịch tập luyện",
-                      onTap: () {},
+                      icon: Icons.card_membership_outlined,
+                      label: "Gói tập hiện tại",
+                      onTap: () {
+                        Navigator.pushNamed(context, "/member/current-package");
+                      },
+                    ),
+                    _featureItem(
+                      icon: Icons.fitness_center,
+                      label: "Danh sách gói tập",
+                      onTap: () {
+                        Navigator.pushNamed(context, "/packages");
+                      },
                     ),
                     _featureItem(
                       icon: Icons.person_pin,
-                      label: "Đặt lịch HLV",
-                      onTap: () {},
+                      label: "Huấn luyện viên",
+                      onTap: () {
+                        Navigator.pushNamed(context, "/trainers");
+                      },
                     ),
                     _featureItem(
                       icon: Icons.event_note,
@@ -103,19 +114,32 @@ class MemberHomeScreen extends StatelessWidget {
                         Navigator.pushNamed(context, "/member/schedule");
                       },
                     ),
-
-                    _featureItem(
-                      icon: Icons.card_membership_outlined,
-                      label: "Gói tập hiện tại",
-                      onTap: () {
-                        Navigator.pushNamed(context, "/member/current-package");
-                      },
-                    ),
                     _featureItem(
                       icon: Icons.local_offer,
                       label: "Mã giảm giá",
                       onTap: () {
                         Navigator.pushNamed(context, '/discounts/active');
+                      },
+                    ),
+                    _featureItem(
+                      icon: Icons.receipt_long,
+                      label: "Lịch sử thanh toán",
+                      onTap: () {
+                        Navigator.pushNamed(context, '/payments/history');
+                      },
+                    ),
+                    _featureItem(
+                      icon: Icons.qr_code_scanner,
+                      label: "Điểm danh QR",
+                      onTap: () {
+                        Navigator.pushNamed(context, '/attendance/qr-scan');
+                      },
+                    ),
+                    _featureItem(
+                      icon: Icons.person,
+                      label: "Thông tin cá nhân",
+                      onTap: () {
+                        Navigator.pushNamed(context, '/member/profile');
                       },
                     ),
                   ],

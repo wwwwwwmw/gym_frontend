@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gym_frontend/core/api_client.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:gym_frontend/core/env.dart';
 
 class GymPackage {
   final String id;
@@ -10,6 +11,7 @@ class GymPackage {
   final int price; // đơn vị: VND
   final int durationInDays; // số ngày
   final int? sessions; // số buổi (nếu có)
+  final String? imageUrl; // hình ảnh gói tập
 
   GymPackage({
     required this.id,
@@ -18,6 +20,7 @@ class GymPackage {
     required this.price,
     required this.durationInDays,
     this.sessions,
+    this.imageUrl,
   });
 
   factory GymPackage.fromJson(Map<String, dynamic> json) {
@@ -31,6 +34,7 @@ class GymPackage {
           (json['duration'] as num?)?.toInt() ??
           0,
       sessions: (json['sessions'] as num?)?.toInt(),
+      imageUrl: json['imageUrl']?.toString(),
     );
   }
 }
@@ -60,15 +64,23 @@ class _MemberRegisterPackageScreenState
   Future<List<GymPackage>> _loadPackages() async {
     final res = await _api.getJson('/api/packages?page=1&limit=20');
 
-    final raw = res is Map<String, dynamic>
-        ? (res['items'] ?? res['data'] ?? res['results'] ?? [])
-        : res;
+    final raw = res['items'] ?? res['data'] ?? res['results'] ?? [];
 
     final list = (raw as List)
         .map((e) => GymPackage.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList();
 
     return list;
+  }
+
+  String? _resolveImageUrl(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    final r = raw.trim();
+    if (r.startsWith('http://') || r.startsWith('https://')) return r;
+    // Treat as relative path from API base
+    final base = apiBaseUrl();
+    if (r.startsWith('/')) return '$base$r';
+    return '$base/$r';
   }
 
   /// Gọi API /api/registrations/me với paymentMethod = 'vnpay'
@@ -278,52 +290,103 @@ class _MemberRegisterPackageScreenState
             separatorBuilder: (_, __) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final pkg = packages[index];
+              final resolvedImage = _resolveImageUrl(pkg.imageUrl);
+              final hasImage = resolvedImage != null;
+
               return InkWell(
                 onTap: () => _onSelectPackage(pkg),
                 borderRadius: BorderRadius.circular(16),
                 child: Container(
-                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFF5F5),
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: Colors.red.shade100),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                  child: Row(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
+                      // PACKAGE IMAGE
+                      if (hasImage)
+                        ClipRRect(
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(16),
+                          ),
+                          child: Image.network(
+                            resolvedImage,
+                            width: double.infinity,
+                            height: 140,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              width: double.infinity,
+                              height: 140,
+                              color: Colors.grey.shade200,
+                              child: Icon(
+                                Icons.fitness_center,
+                                size: 48,
+                                color: Colors.grey.shade400,
+                              ),
+                            ),
+                          ),
                         ),
-                        child: Icon(
-                          Icons.fitness_center,
-                          color: colorScheme.error,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
+
+                      // CONTENT
+                      Padding(
+                        padding: const EdgeInsets.all(16),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              pkg.name,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (!hasImage)
+                                  Container(
+                                    width: 48,
+                                    height: 48,
+                                    margin: const EdgeInsets.only(right: 12),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFF5F5),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Icon(
+                                      Icons.fitness_center,
+                                      color: colorScheme.error,
+                                    ),
+                                  ),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        pkg.name,
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        _currency.format(pkg.price),
+                                        style: TextStyle(
+                                          color: colorScheme.error,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(Icons.chevron_right),
+                              ],
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _currency.format(pkg.price),
-                              style: TextStyle(
-                                color: colorScheme.error,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 8),
                             Text(
                               'Thời hạn: ${pkg.durationInDays} ngày'
                               '${pkg.sessions != null ? ' • ${pkg.sessions} buổi' : ''}',
@@ -340,14 +403,13 @@ class _MemberRegisterPackageScreenState
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: Colors.grey.shade700,
+                                  color: Colors.grey.shade600,
                                 ),
                               ),
                             ],
                           ],
                         ),
                       ),
-                      const Icon(Icons.chevron_right),
                     ],
                   ),
                 ),
