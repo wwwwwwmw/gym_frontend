@@ -161,22 +161,22 @@ class _EmployeesScreenState extends State<EmployeesScreen> {
                                 value: 'ADMIN',
                                 child: Text('ADMIN'),
                               ),
-                              DropdownMenuItem(
-                                value: 'MANAGER',
-                                child: Text('MANAGER'),
-                              ),
+                              // DropdownMenuItem( // ĐÃ XÓA
+                              //   value: 'MANAGER',
+                              //   child: Text('MANAGER'),
+                              // ),
                               DropdownMenuItem(
                                 value: 'TRAINER',
                                 child: Text('TRAINER'),
                               ),
-                              DropdownMenuItem(
-                                value: 'RECEPTION',
-                                child: Text('RECEPTION'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'MEMBER',
-                                child: Text('MEMBER'),
-                              ),
+                              // DropdownMenuItem( // ĐÃ XÓA
+                              //   value: 'RECEPTION',
+                              //   child: Text('RECEPTION'),
+                              // ),
+                              // DropdownMenuItem( // ĐÃ XÓA
+                              //   value: 'MEMBER',
+                              //   child: Text('MEMBER'),
+                              // ),
                             ],
                             onChanged: (v) {
                               setState(() => _position = v);

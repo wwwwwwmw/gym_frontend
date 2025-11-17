@@ -38,15 +38,15 @@ class _LoginScreenState extends State<LoginScreen> {
           case 'ADMIN':
             Navigator.of(context).pushReplacementNamed('/dash/admin');
             break;
-          case 'MANAGER':
-            Navigator.of(context).pushReplacementNamed('/dash/manager');
-            break;
+          // case 'MANAGER': // Đã bị xóa
+          //   Navigator.of(context).pushReplacementNamed('/dash/manager');
+          //   break;
           case 'TRAINER':
             Navigator.of(context).pushReplacementNamed('/dash/trainer');
             break;
-          case 'RECEPTION':
-            Navigator.of(context).pushReplacementNamed('/dash/reception');
-            break;
+          // case 'RECEPTION': // Đã bị xóa
+          //   Navigator.of(context).pushReplacementNamed('/dash/reception');
+          //   break;
           default:
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const MemberHomeScreen()),

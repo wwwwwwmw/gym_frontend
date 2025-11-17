@@ -16,10 +16,13 @@ class _SaveEmployeeScreenState extends State<SaveEmployeeScreen> {
   final _fullName = TextEditingController();
   final _email = TextEditingController();
   final _phone = TextEditingController();
-  String _role = 'TRAINER';
+  String _role = 'TRAINER'; // Mặc định là TRAINER
   final _department = TextEditingController();
   final _salary = TextEditingController();
   String _status = 'active';
+
+  // == CHỈ ĐỊNH CÁC VAI TRÒ HỢP LỆ ==
+  final List<String> _validRoles = const ['ADMIN', 'TRAINER'];
 
   @override
   void initState() {
@@ -29,7 +32,15 @@ class _SaveEmployeeScreenState extends State<SaveEmployeeScreen> {
       _fullName.text = e.fullName;
       _email.text = e.email;
       _phone.text = e.phone;
-      _role = e.position.isNotEmpty ? e.position : 'TRAINER';
+
+      // Kiểm tra xem vai trò cũ có còn hợp lệ không
+      if (e.position.isNotEmpty && _validRoles.contains(e.position)) {
+        _role = e.position;
+      } else {
+        // Nếu vai trò cũ là 'MANAGER' hoặc 'RECEPTION',
+        // nó sẽ không nằm trong _validRoles và sẽ dùng giá trị mặc định 'TRAINER'
+      }
+
       _department.text = e.department ?? '';
       _salary.text = e.salary?.toString() ?? '';
       _status = e.status.toLowerCase();
@@ -156,25 +167,10 @@ class _SaveEmployeeScreenState extends State<SaveEmployeeScreen> {
                   children: [
                     DropdownButtonFormField<String>(
                       value: _role,
-                      items: const [
-                        DropdownMenuItem(value: 'ADMIN', child: Text('ADMIN')),
-                        DropdownMenuItem(
-                          value: 'MANAGER',
-                          child: Text('MANAGER'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'TRAINER',
-                          child: Text('TRAINER'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'RECEPTION',
-                          child: Text('RECEPTION'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'MEMBER',
-                          child: Text('MEMBER'),
-                        ),
-                      ],
+                      // == DÙNG DANH SÁCH ĐỘNG ĐÃ LỌC ==
+                      items: _validRoles.map((String role) {
+                        return DropdownMenuItem(value: role, child: Text(role));
+                      }).toList(),
                       onChanged: (v) => setState(() => _role = v ?? _role),
                       decoration: const InputDecoration(
                         labelText: 'Vị trí (Vai trò) *',

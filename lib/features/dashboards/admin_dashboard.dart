@@ -185,6 +185,22 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     label: "Đăng ký gói",
                     onTap: () => Navigator.pushNamed(context, "/registrations"),
                   ),
+
+                  // ======== THÊM MỚI ========
+                  _menuCard(
+                    icon: Icons.person_add_alt_1_rounded,
+                    label: "Tạo hội viên",
+                    onTap: () =>
+                        Navigator.pushNamed(context, "/members/create"),
+                  ),
+                  _menuCard(
+                    icon: Icons.post_add_rounded,
+                    label: "Tạo đăng ký",
+                    onTap: () =>
+                        Navigator.pushNamed(context, "/registrations/create"),
+                  ),
+
+                  // ======== KẾT THÚC THÊM MỚI ========
                   _menuCard(
                     icon: Icons.qr_code_scanner_rounded,
                     label: "Điểm danh",

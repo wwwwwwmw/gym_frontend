@@ -12,9 +12,9 @@ import 'features/auth/signup_provider.dart';
 import 'features/auth/signup_screen.dart' as signupScreen;
 import 'features/auth/verify_email_screen.dart';
 import 'features/dashboards/admin_dashboard.dart';
-import 'features/dashboards/manager_dashboard.dart';
+// import 'features/dashboards/manager_dashboard.dart'; // ĐÃ XÓA
 import 'features/dashboards/trainer_dashboard.dart';
-import 'features/dashboards/reception_dashboard.dart';
+// import 'features/dashboards/reception_dashboard.dart'; // ĐÃ XÓA
 import 'features/member/member_home_screen.dart';
 import 'features/members/member_provider.dart';
 import 'features/members/members_screen.dart';
@@ -146,18 +146,18 @@ class _GymAppState extends State<GymApp> {
               return MaterialPageRoute(builder: (_) => const DiscountsScreen());
             case '/dash/admin':
               return MaterialPageRoute(builder: (_) => const AdminDashboard());
-            case '/dash/manager':
-              return MaterialPageRoute(
-                builder: (_) => const ManagerDashboard(),
-              );
+            // case '/dash/manager': // ĐÃ XÓA
+            //   return MaterialPageRoute(
+            //     builder: (_) => const ManagerDashboard(),
+            //   );
             case '/dash/trainer':
               return MaterialPageRoute(
                 builder: (_) => const TrainerDashboard(),
               );
-            case '/dash/reception':
-              return MaterialPageRoute(
-                builder: (_) => const ReceptionDashboard(),
-              );
+            // case '/dash/reception': // ĐÃ XÓA
+            //   return MaterialPageRoute(
+            //     builder: (_) => const ReceptionDashboard(),
+            //   );
             case '/dash/member':
               return MaterialPageRoute(
                 builder: (_) => const MemberHomeScreen(),
