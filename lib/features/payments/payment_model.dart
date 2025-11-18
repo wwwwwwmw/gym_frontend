@@ -10,6 +10,9 @@ class PaymentModel {
   final DateTime? paidAt;
   final DateTime createdAt;
 
+  final String? packageName;
+  final String? packageImageUrl;
+
   PaymentModel({
     required this.id,
     required this.memberId,
@@ -21,54 +24,101 @@ class PaymentModel {
     this.vnpayTxnRef,
     this.paidAt,
     required this.createdAt,
+    this.packageName,
+    this.packageImageUrl,
   });
 
   factory PaymentModel.fromMap(Map<String, dynamic> m) {
+    String getId(dynamic field) {
+      if (field == null) return '';
+      if (field is String) return field;
+      if (field is Map && field.containsKey('_id'))
+        return field['_id'].toString();
+      return field.toString();
+    }
+
+    String? pkgName;
+    String? pkgImage;
+    try {
+      if (m['packageRegistration'] is Map) {
+        final reg = m['packageRegistration'];
+        final pkgData = reg['package'] ?? reg['package_id'];
+        if (pkgData is Map) {
+          pkgName = pkgData['name']?.toString();
+          pkgImage = pkgData['imageUrl']?.toString();
+        }
+      }
+    } catch (e) {
+      print("Lỗi parse gói tập: $e");
+    }
+
+    // ✅ LOGIC MỚI: Tự động nhận diện phương thức thanh toán
+    String detectedMethod = 'cash'; // Mặc định là Tiền mặt
+
+    if (m['method'] != null && m['method'].toString().isNotEmpty) {
+      detectedMethod = m['method'].toString();
+    } else {
+      // Nếu không có field method, ta đoán dựa trên dữ liệu VNPay
+      // Nếu có mã giao dịch VNPay -> Là VNPay
+      if (m['vnpTransactionNo'] != null || m['vnpResponseCode'] != null) {
+        detectedMethod = 'vnpay';
+      }
+    }
+
     return PaymentModel(
-      id: m['_id'] as String,
-      memberId: m['member_id'] as String,
-      registrationId: m['registration_id'] as String?,
+      id: m['_id']?.toString() ?? '',
+      memberId: getId(m['user'] ?? m['member_id']),
+      registrationId: getId(m['packageRegistration'] ?? m['registration_id']),
       amount: (m['amount'] ?? 0) as num,
-      method: (m['method'] ?? 'cash') as String,
-      status: (m['status'] ?? 'pending') as String,
-      transactionId: m['transactionId'] as String?,
-      vnpayTxnRef: m['vnpayTxnRef'] as String?,
-      paidAt: m['paidAt'] != null
-          ? DateTime.tryParse(m['paidAt'].toString())
+
+      // Gán phương thức đã nhận diện
+      method: detectedMethod,
+
+      status: (m['status'] ?? 'pending').toString(),
+      transactionId: (m['vnpTransactionNo'] ?? m['transactionId'])?.toString(),
+      vnpayTxnRef: (m['txnRef'] ?? m['vnpayTxnRef'])?.toString(),
+      paidAt: m['paidAt'] != null || m['vnpPayDate'] != null
+          ? _parseDate(m['paidAt'] ?? m['vnpPayDate'])
           : null,
-      createdAt: DateTime.parse(m['createdAt'].toString()),
+      createdAt: _parseDate(m['createdAt']) ?? DateTime.now(),
+      packageName: pkgName,
+      packageImageUrl: pkgImage,
     );
   }
 
+  static DateTime? _parseDate(dynamic date) {
+    if (date == null) return null;
+    if (date is DateTime) return date;
+    try {
+      return DateTime.parse(date.toString());
+    } catch (e) {
+      return DateTime.now();
+    }
+  }
+
   String get displayAmount {
-    return '${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}đ';
+    return '${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')} ₫';
   }
 
   String get displayStatus {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case 'paid':
-        return 'Đã thanh toán';
+      case 'success':
+        return 'Thành công';
       case 'pending':
-        return 'Chờ thanh toán';
+        return 'Đang chờ';
       case 'failed':
         return 'Thất bại';
       case 'refunded':
-        return 'Đã hoàn tiền';
+        return 'Hoàn tiền';
       default:
-        return status;
+        return 'Đang chờ';
     }
   }
 
+  // Chỉ hiển thị VNPay hoặc Tiền mặt
   String get displayMethod {
-    switch (method) {
-      case 'vnpay':
-        return 'VNPay';
-      case 'cash':
-        return 'Tiền mặt';
-      case 'bank_transfer':
-        return 'Chuyển khoản';
-      default:
-        return method;
-    }
+    if (method.toLowerCase() == 'vnpay') return 'VNPay';
+    return 'Tiền mặt';
   }
 }

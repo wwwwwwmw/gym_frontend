@@ -85,21 +85,42 @@ class _MemberRegisterPackageScreenState
 
   /// Gọi API /api/registrations/me với paymentMethod = 'vnpay'
   /// rồi mở trang thanh toán VNPay
+  /// Gọi API /api/payments/create-vnpay để lấy link thanh toán và lưu lịch sử
   Future<void> _startVnPayPayment(GymPackage pkg) async {
     if (_creatingOrder) return;
     setState(() => _creatingOrder = true);
 
     try {
-      final res = await _api.postJson(
+      // 1. Đầu tiên phải tạo bản ghi đăng ký (Registration) trước
+      // Để lấy được ID đăng ký (registrationId)
+      final regRes = await _api.postJson(
         '/api/registrations/me',
         body: {
           'packageId': pkg.id,
-          'paymentMethod': 'vnpay',
-          // sau này có thể thêm discountId, trainerId, prebook...
+          // 'paymentMethod': 'vnpay', // Không cần thiết nếu API không yêu cầu bắt buộc
         },
       );
 
-      final paymentUrl = res['paymentUrl']?.toString();
+      final registrationId =
+          regRes['registration']?['_id'] ??
+          regRes['data']?['_id'] ??
+          regRes['_id']; // Tùy cấu trúc trả về của API registration
+
+      if (registrationId == null) {
+        throw ApiException('Lỗi: Không lấy được ID đăng ký gói tập');
+      }
+
+      // 2. Gọi API tạo thanh toán VNPay (API mới chúng ta vừa làm)
+      final paymentRes = await _api.postJson(
+        '/api/payments/create-vnpay',
+        body: {
+          'registrationId': registrationId,
+          'amount': pkg.price, // Số tiền từ gói tập
+          'locale': 'vn',
+        },
+      );
+
+      final paymentUrl = paymentRes['paymentUrl']?.toString();
 
       if (paymentUrl == null || paymentUrl.isEmpty) {
         throw ApiException('Không nhận được link thanh toán từ server');
@@ -110,6 +131,7 @@ class _MemberRegisterPackageScreenState
       // Đóng bottom sheet trước khi mở trình duyệt
       Navigator.of(context).pop();
 
+      // Mở trình duyệt để thanh toán
       final uri = Uri.parse(paymentUrl);
       final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
 
@@ -130,7 +152,7 @@ class _MemberRegisterPackageScreenState
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Có lỗi xảy ra khi tạo đơn thanh toán: $e'),
+          content: Text('Có lỗi xảy ra: $e'),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
