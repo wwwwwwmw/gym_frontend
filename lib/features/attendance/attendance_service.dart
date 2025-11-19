@@ -40,7 +40,7 @@ class AttendanceService {
     return Map<String, dynamic>.from(res);
   }
 
-  /// ✅ Check-in theo memberId (giữ nguyên)
+  /// ✅ Check-in theo memberId (giữ nguyên - dùng cho Admin/PT)
   Future<AttendanceModel> checkIn(String memberId, {String? note}) async {
     final res = await api.postJson(
       '/api/attendance/checkin',
@@ -52,8 +52,7 @@ class AttendanceService {
     return AttendanceModel.fromJson(res['attendance']);
   }
 
-  /// ✅ Check-in bằng mã / email / SĐT / id
-  /// Gọi tới BE: POST /api/attendance/checkin-by-code
+  /// ✅ Check-in bằng mã / email / SĐT (giữ nguyên - dùng cho Admin/PT)
   Future<AttendanceModel> checkInByCode(
     String identifier, {
     String? note,
@@ -79,51 +78,48 @@ class AttendanceService {
     return AttendanceModel.fromJson(res['attendance']);
   }
 
-  /// ✅ Check-in bằng QR: token (JWT) + memberIdentifier (id/email/phone)
-  /// Nếu `endpoint` là URL đầy đủ trong QR -> gọi trực tiếp; nếu không -> gọi theo base API.
+  /// ✅ QUAN TRỌNG: Hàm này dùng cho Màn hình quét QR của App
+  /// Chỉ cần gửi 'token' (mã QR), không cần memberIdentifier
+  Future<AttendanceModel> checkInWithQr(String qrToken) async {
+    final res = await api.postJson(
+      '/api/attendance/qr-checkin', // Route khớp với Backend
+      body: {
+        'token': qrToken, // Gửi token quét được lên server
+      },
+    );
+
+    // Server trả về: { message: "...", attendance: {...} }
+    if (res['attendance'] == null) {
+      throw Exception(res['message'] ?? 'Lỗi không xác định từ server');
+    }
+
+    return AttendanceModel.fromJson(res['attendance']);
+  }
+
+  // Hàm cũ (giữ lại để tránh lỗi các file khác nếu có dùng, nhưng set optional)
   Future<AttendanceModel> qrCheckIn({
     required String token,
-    required String memberIdentifier,
+    String? memberIdentifier,
     String? note,
     String? endpoint,
   }) async {
-    if (endpoint != null &&
-        (endpoint.startsWith('http://') || endpoint.startsWith('https://'))) {
+    // Nếu có endpoint riêng (ít dùng)
+    if (endpoint != null && endpoint.startsWith('http')) {
       final res = await http.post(
         Uri.parse(endpoint),
         headers: const {'Content-Type': 'application/json'},
         body: jsonEncode({
           'token': token,
-          'memberIdentifier': memberIdentifier,
-          if (note != null && note.isNotEmpty) 'note': note,
+          if (memberIdentifier != null) 'memberIdentifier': memberIdentifier,
+          if (note != null) 'note': note,
         }),
       );
-      if (res.statusCode < 200 || res.statusCode >= 300) {
-        try {
-          final body = jsonDecode(res.body);
-          throw ApiException(
-            body['message']?.toString() ?? 'HTTP ${res.statusCode}',
-            statusCode: res.statusCode,
-          );
-        } catch (_) {
-          throw ApiException(
-            'HTTP ${res.statusCode}: ${res.body}',
-            statusCode: res.statusCode,
-          );
-        }
-      }
-      final json = jsonDecode(res.body) as Map<String, dynamic>;
+      if (res.statusCode >= 300) throw ApiException('HTTP ${res.statusCode}');
+      final json = jsonDecode(res.body);
       return AttendanceModel.fromJson(json['attendance']);
     }
 
-    final json = await api.postJson(
-      '/api/attendance/qr-checkin',
-      body: {
-        'token': token,
-        'memberIdentifier': memberIdentifier,
-        if (note != null && note.isNotEmpty) 'note': note,
-      },
-    );
-    return AttendanceModel.fromJson(json['attendance']);
+    // Gọi hàm chuẩn
+    return checkInWithQr(token);
   }
 }
