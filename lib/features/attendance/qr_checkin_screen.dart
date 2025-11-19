@@ -1,11 +1,9 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:gym_frontend/core/api_client.dart';
 import 'package:gym_frontend/core/token_storage.dart';
 import 'package:gym_frontend/features/member/member_service.dart';
 import 'attendance_service.dart';
-import 'attendance_model.dart';
 
 class QrCheckInScreen extends StatefulWidget {
   const QrCheckInScreen({super.key});
@@ -17,8 +15,13 @@ class QrCheckInScreen extends StatefulWidget {
 class _QrCheckInScreenState extends State<QrCheckInScreen> {
   final MobileScannerController _controller = MobileScannerController();
   bool _processing = false;
+  
+  // Trạng thái hiển thị kết quả
   String? _error;
   String? _successMessage;
+  String? _subMessage; // Dùng cho thông tin phụ (VD: thời gian tập)
+  Color _statusColor = Colors.green;
+  IconData _statusIcon = Icons.check_circle;
 
   @override
   void dispose() {
@@ -28,55 +31,64 @@ class _QrCheckInScreenState extends State<QrCheckInScreen> {
 
   Future<void> _handleQrCode(String raw) async {
     if (_processing) return;
+    if (raw.isEmpty) return;
 
     setState(() {
       _processing = true;
       _error = null;
       _successMessage = null;
+      _subMessage = null;
     });
 
     try {
-      // Parse QR data
-      final data = jsonDecode(raw) as Map<String, dynamic>;
+      final token = raw;
 
-      if (data['type'] != 'attendance') {
-        throw Exception('Mã QR không hợp lệ cho điểm danh');
-      }
-
-      final token = data['token'] as String?;
-      if (token == null || token.isEmpty) {
-        throw Exception('Mã QR thiếu token');
-      }
-
-      final endpoint = data['endpoint'] as String?;
-
-      // Lấy member ID từ profile
+      // Refresh profile (optional)
       final memberService = MemberService(ApiClient(storage: TokenStorage()));
-      final member = await memberService.getMyProfile();
+      await memberService.getMyProfile();
 
-      // Có thể dùng ID, email hoặc membershipNumber
-      final memberIdentifier = member.id;
-
-      // Check-in qua QR
       final attendanceService = AttendanceService(
         ApiClient(storage: TokenStorage()),
       );
-      final attendance = await attendanceService.qrCheckIn(
-        token: token,
-        memberIdentifier: memberIdentifier,
-        endpoint: endpoint,
-      );
+
+      // Gọi API (lấy về Map full data)
+      final res = await attendanceService.checkInWithQr(token);
+      
+      final message = res['message'] as String? ?? 'Thành công!';
+      final type = res['type'] as String? ?? 'CHECK_IN';
+      final summary = res['workoutSummary'] as Map<String, dynamic>?;
 
       if (!mounted) return;
 
-      // Hiển thị kết quả thành công
       setState(() {
-        _successMessage =
-            'Check-in thành công!\n${attendance.memberName ?? ''}';
+        _successMessage = message;
+        
+        // Xử lý giao diện dựa trên TYPE trả về từ Server
+        switch (type) {
+          case 'CHECK_OUT':
+            _statusColor = Colors.orange.shade800; // Màu cam cho Check-out
+            _statusIcon = Icons.logout;
+            if (summary != null) {
+               final minutes = summary['durationMinutes'];
+               _subMessage = 'Tổng thời gian: $minutes phút';
+            }
+            break;
+            
+          case 'WARNING_TOO_SOON':
+            _statusColor = Colors.amber.shade700; // Màu vàng cảnh báo
+            _statusIcon = Icons.warning_amber_rounded;
+            break;
+            
+          case 'CHECK_IN':
+          default:
+            _statusColor = Colors.green.shade700; // Màu xanh mặc định
+            _statusIcon = Icons.check_circle;
+            break;
+        }
       });
 
-      // Đợi 2 giây rồi đóng màn hình
-      await Future.delayed(const Duration(seconds: 2));
+      // Đợi lâu hơn xíu (2.5s) để người dùng kịp đọc thông báo
+      await Future.delayed(const Duration(milliseconds: 2500));
       if (mounted) {
         Navigator.of(context).pop(true);
       }
@@ -86,7 +98,6 @@ class _QrCheckInScreenState extends State<QrCheckInScreen> {
           _error = e.toString().replaceAll('Exception: ', '');
         });
       }
-      // Clear error sau 3 giây để có thể quét lại
       Future.delayed(const Duration(seconds: 3), () {
         if (mounted) {
           setState(() {
@@ -123,7 +134,7 @@ class _QrCheckInScreenState extends State<QrCheckInScreen> {
             },
           ),
 
-          // Overlay hướng dẫn
+          // Khung ngắm (Overlay) - Ẩn khi đang hiện kết quả
           if (!_processing && _error == null && _successMessage == null)
             Center(
               child: Container(
@@ -132,11 +143,17 @@ class _QrCheckInScreenState extends State<QrCheckInScreen> {
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.white, width: 3),
                   borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                     BoxShadow(
+                       color: Colors.black.withOpacity(0.5),
+                       spreadRadius: 1000, // Làm tối phần xung quanh
+                     )
+                  ]
                 ),
               ),
             ),
 
-          // Hướng dẫn
+          // Hướng dẫn text
           if (!_processing && _error == null && _successMessage == null)
             Positioned(
               bottom: 100,
@@ -146,11 +163,11 @@ class _QrCheckInScreenState extends State<QrCheckInScreen> {
                 margin: const EdgeInsets.symmetric(horizontal: 40),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.black87,
+                  color: Colors.black54,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Text(
-                  'Đưa mã QR vào khung để điểm danh',
+                  'Đưa mã QR vào khung để Check-in / Check-out',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.white,
@@ -180,38 +197,60 @@ class _QrCheckInScreenState extends State<QrCheckInScreen> {
               ),
             ),
 
-          // Success message
+          // Success/Info/Warning Message Overlay
           if (_successMessage != null)
             Container(
-              color: Colors.green.withOpacity(0.9),
+              color: _statusColor.withOpacity(0.95), // Dùng màu động
               child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.check_circle,
-                      size: 80,
-                      color: Colors.white,
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      _successMessage!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
+                child: Padding(
+                  padding: const EdgeInsets.all(32.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _statusIcon, // Icon động
+                        size: 100,
                         color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 24),
+                      Text(
+                        _successMessage!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (_subMessage != null) ...[
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(20)
+                          ),
+                          child: Text(
+                            _subMessage!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ]
+                    ],
+                  ),
                 ),
               ),
             ),
 
-          // Error message
+          // Error message overlay
           if (_error != null)
             Container(
-              color: Colors.red.withOpacity(0.9),
+              color: Colors.red.withOpacity(0.95),
               child: Center(
                 child: Padding(
                   padding: const EdgeInsets.all(32),
@@ -235,7 +274,7 @@ class _QrCheckInScreenState extends State<QrCheckInScreen> {
                       ),
                       const SizedBox(height: 24),
                       const Text(
-                        'Quét lại sau 3 giây...',
+                        'Thử lại sau 3 giây...',
                         style: TextStyle(color: Colors.white70, fontSize: 14),
                       ),
                     ],
@@ -244,7 +283,7 @@ class _QrCheckInScreenState extends State<QrCheckInScreen> {
               ),
             ),
 
-          // Torch/Flash button
+          // Nút bật đèn Flash
           Positioned(
             bottom: 30,
             right: 30,
