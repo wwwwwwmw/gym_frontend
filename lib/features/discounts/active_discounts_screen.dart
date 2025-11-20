@@ -18,7 +18,7 @@ class _ActiveDiscountsScreenState extends State<ActiveDiscountsScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<DiscountProvider>().fetchActivePublic();
+      context.read<DiscountProvider>().loadActiveDiscounts();
     });
   }
 
