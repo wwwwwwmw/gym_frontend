@@ -50,12 +50,34 @@ class DiscountService {
 
   // Public endpoint: active discounts (no role required)
   Future<List<DiscountModel>> listActivePublic() async {
-    final res = await _api.getJson('/api/discounts/active');
+    final res = await _api.getJson('/api/discounts/public/active');
     final items = ((res['data'] as List?) ?? [])
         .cast<Map<String, dynamic>>()
         .map(DiscountModel.fromMap)
         .toList();
     return items;
+  }
+
+  // Public endpoint: package-specific active discounts (no role required)
+  Future<List<DiscountModel>> listActiveForPackage(String? packageId) async {
+    final res = await _api.getJson(
+      '/api/discounts/public/package-discounts',
+      query: packageId != null ? {'packageId': packageId} : {},
+    );
+    final items = ((res['data'] as List?) ?? [])
+        .cast<Map<String, dynamic>>()
+        .map(DiscountModel.fromMap)
+        .toList();
+    return items;
+  }
+
+  // --- THÊM HÀM NÀY ---
+  Future<DiscountModel> validate(String code, String packageId) async {
+    final res = await _api.postJson(
+      '/api/discounts/validate',
+      body: {'code': code, 'packageId': packageId},
+    );
+    return DiscountModel.fromMap(res['data']);
   }
 }
 

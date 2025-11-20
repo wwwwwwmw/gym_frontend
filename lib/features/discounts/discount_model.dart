@@ -8,7 +8,6 @@ class DiscountModel {
   final DateTime startDate;
   final DateTime endDate;
   final String status; // active|inactive|expired
-  final String? campaignId;
   final List<String> applicablePackageIds;
   final num? minPurchaseAmount;
   final int? maxUsageCount;
@@ -29,7 +28,6 @@ class DiscountModel {
     required this.startDate,
     required this.endDate,
     required this.status,
-    this.campaignId,
     required this.applicablePackageIds,
     required this.minPurchaseAmount,
     required this.maxUsageCount,
@@ -51,7 +49,6 @@ class DiscountModel {
     startDate: DateTime.parse(m['startDate'] as String),
     endDate: DateTime.parse(m['endDate'] as String),
     status: (m['status'] ?? 'active') as String,
-    campaignId: m['campaignId'] as String?,
     applicablePackageIds: ((m['applicablePackages'] as List?) ?? [])
         .map((e) => e is String ? e : (e['_id'] as String))
         .toList(),
@@ -74,7 +71,6 @@ class DiscountModel {
     'startDate': startDate.toIso8601String(),
     'endDate': endDate.toIso8601String(),
     'status': status,
-    if (campaignId != null) 'campaignId': campaignId,
     'applicablePackages': applicablePackageIds,
     if (minPurchaseAmount != null) 'minPurchaseAmount': minPurchaseAmount,
     if (maxUsageCount != null) 'maxUsageCount': maxUsageCount,
