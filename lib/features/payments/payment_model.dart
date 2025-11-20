@@ -1,31 +1,34 @@
+import 'package:intl/intl.dart';
+
 class PaymentModel {
   final String id;
   final String memberId;
   final String? registrationId;
+  final String? orderId;
   final num amount;
   final String method;
   final String status;
-  final String? transactionId;
   final String? vnpayTxnRef;
-  final DateTime? paidAt;
   final DateTime createdAt;
 
-  final String? packageName;
-  final String? packageImageUrl;
+  // ✅ Thông tin hiển thị (Dùng chung cho cả Gói tập & Sản phẩm)
+  final String itemName;
+  final String? itemImageUrl;
+  final bool isProduct;
 
   PaymentModel({
     required this.id,
     required this.memberId,
     this.registrationId,
+    this.orderId,
     required this.amount,
     required this.method,
     required this.status,
-    this.transactionId,
     this.vnpayTxnRef,
-    this.paidAt,
     required this.createdAt,
-    this.packageName,
-    this.packageImageUrl,
+    required this.itemName,
+    this.itemImageUrl,
+    required this.isProduct,
   });
 
   factory PaymentModel.fromMap(Map<String, dynamic> m) {
@@ -37,67 +40,74 @@ class PaymentModel {
       return field.toString();
     }
 
-    String? pkgName;
-    String? pkgImage;
+    // --- LOGIC NHẬN DIỆN TÊN & ẢNH (QUAN TRỌNG) ---
+    String name = 'Thanh toán';
+    String? image;
+    bool isProd = false;
+
     try {
-      if (m['packageRegistration'] is Map) {
-        final reg = m['packageRegistration'];
-        final pkgData = reg['package'] ?? reg['package_id'];
-        if (pkgData is Map) {
-          pkgName = pkgData['name']?.toString();
-          pkgImage = pkgData['imageUrl']?.toString();
+      // 1. Kiểm tra Đơn hàng (Sản phẩm)
+      if (m['order'] != null && m['order'] is Map) {
+        final orderData = m['order'];
+        // Backend populate: payment -> order -> product_id
+        final productData = orderData['product_id'] ?? orderData['product'];
+
+        if (productData != null && productData is Map) {
+          name = productData['name']?.toString() ?? 'Sản phẩm';
+          // Lấy ảnh (Backend trả về 'imageUrl')
+          image =
+              productData['imageUrl']?.toString() ??
+              productData['image']?.toString();
+          isProd = true;
+        } else {
+          name = "Đơn hàng sản phẩm";
+          isProd = true;
+        }
+      }
+      // 2. Kiểm tra Gói tập
+      else if (m['packageRegistration'] != null &&
+          m['packageRegistration'] is Map) {
+        final regData = m['packageRegistration'];
+        // Backend populate: payment -> packageRegistration -> package_id
+        final pkgData = regData['package_id'] ?? regData['package'];
+
+        if (pkgData != null && pkgData is Map) {
+          name = pkgData['name']?.toString() ?? 'Gói tập';
+          // Lấy ảnh gói tập
+          image =
+              pkgData['imageUrl']?.toString() ?? pkgData['image']?.toString();
+        } else {
+          name = "Gói tập";
         }
       }
     } catch (e) {
-      print("Lỗi parse gói tập: $e");
+      print("Lỗi parse item: $e");
     }
 
-    // ✅ LOGIC MỚI: Tự động nhận diện phương thức thanh toán
-    String detectedMethod = 'cash'; // Mặc định là Tiền mặt
-
-    if (m['method'] != null && m['method'].toString().isNotEmpty) {
+    // Nhận diện phương thức
+    String detectedMethod = 'cash';
+    if (m['method'] != null) {
       detectedMethod = m['method'].toString();
-    } else {
-      // Nếu không có field method, ta đoán dựa trên dữ liệu VNPay
-      // Nếu có mã giao dịch VNPay -> Là VNPay
-      if (m['vnpTransactionNo'] != null || m['vnpResponseCode'] != null) {
-        detectedMethod = 'vnpay';
-      }
+    } else if (m['vnpTransactionNo'] != null || m['vnpResponseCode'] != null) {
+      detectedMethod = 'vnpay';
     }
 
     return PaymentModel(
       id: m['_id']?.toString() ?? '',
       memberId: getId(m['user'] ?? m['member_id']),
-      registrationId: getId(m['packageRegistration'] ?? m['registration_id']),
+      registrationId: getId(m['packageRegistration']),
+      orderId: getId(m['order']),
       amount: (m['amount'] ?? 0) as num,
-
-      // Gán phương thức đã nhận diện
       method: detectedMethod,
-
       status: (m['status'] ?? 'pending').toString(),
-      transactionId: (m['vnpTransactionNo'] ?? m['transactionId'])?.toString(),
       vnpayTxnRef: (m['txnRef'] ?? m['vnpayTxnRef'])?.toString(),
-      paidAt: m['paidAt'] != null || m['vnpPayDate'] != null
-          ? _parseDate(m['paidAt'] ?? m['vnpPayDate'])
-          : null,
-      createdAt: _parseDate(m['createdAt']) ?? DateTime.now(),
-      packageName: pkgName,
-      packageImageUrl: pkgImage,
+      createdAt: m['createdAt'] != null
+          ? DateTime.tryParse(m['createdAt'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+      itemName: name,
+      itemImageUrl: image,
+      isProduct: isProd,
     );
-  }
-
-  static DateTime? _parseDate(dynamic date) {
-    if (date == null) return null;
-    if (date is DateTime) return date;
-    try {
-      return DateTime.parse(date.toString());
-    } catch (e) {
-      return DateTime.now();
-    }
-  }
-
-  String get displayAmount {
-    return '${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')} ₫';
   }
 
   String get displayStatus {
@@ -105,20 +115,10 @@ class PaymentModel {
       case 'paid':
       case 'success':
         return 'Thành công';
-      case 'pending':
-        return 'Đang chờ';
       case 'failed':
         return 'Thất bại';
-      case 'refunded':
-        return 'Hoàn tiền';
       default:
         return 'Đang chờ';
     }
-  }
-
-  // Chỉ hiển thị VNPay hoặc Tiền mặt
-  String get displayMethod {
-    if (method.toLowerCase() == 'vnpay') return 'VNPay';
-    return 'Tiền mặt';
   }
 }

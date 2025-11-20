@@ -13,6 +13,8 @@ class SignupScreen extends StatefulWidget {
 
 class _SignupScreenState extends State<SignupScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _fullNameController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -24,6 +26,8 @@ class _SignupScreenState extends State<SignupScreen> {
 
   @override
   void dispose() {
+    _fullNameController.dispose();
+    _phoneController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -42,12 +46,10 @@ class _SignupScreenState extends State<SignupScreen> {
 
     try {
       await signupProvider.register(
-        fullName: _emailController.text.split(
-          '@',
-        )[0], // Sử dụng phần trước @ làm tên tạm thời
-        email: _emailController.text,
+        fullName: _fullNameController.text.trim(),
+        email: _emailController.text.trim(),
         password: _passwordController.text,
-        phone: '', // Placeholder - có thể thêm field phone nếu cần
+        phone: _phoneController.text.trim(),
       );
 
       if (mounted) {
@@ -119,6 +121,47 @@ class _SignupScreenState extends State<SignupScreen> {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 48), // Khoảng cách chính
+                  // Trường Họ tên
+                  TextFormField(
+                    controller: _fullNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Họ và tên',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.person_outline),
+                    ),
+                    keyboardType: TextInputType.name,
+                    textCapitalization: TextCapitalization.words,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Vui lòng nhập họ và tên';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Trường Số điện thoại
+                  TextFormField(
+                    controller: _phoneController,
+                    decoration: const InputDecoration(
+                      labelText: 'Số điện thoại',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.phone_outlined),
+                    ),
+                    keyboardType: TextInputType.phone,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Vui lòng nhập số điện thoại';
+                      }
+                      if (value.trim().length < 10 ||
+                          value.trim().length > 15) {
+                        return 'Số điện thoại phải có từ 10-15 ký tự';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 20),
+
                   // Trường Email
                   TextFormField(
                     controller: _emailController,

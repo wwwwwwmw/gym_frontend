@@ -37,16 +37,25 @@ class PaymentService {
         .toList();
   }
 
-  /// Tạo thanh toán VNPay
+  /// Tạo thanh toán VNPay (Hỗ trợ cả Gói tập và Sản phẩm)
   Future<String> createVNPayPayment({
-    required String registrationId,
+    String? registrationId, // Cho gói tập (Optional)
+    String? orderId, // Cho đơn hàng sản phẩm (MỚI - Optional)
     required num amount,
     String? locale,
   }) async {
+    // Validation: Phải có ít nhất 1 loại ID để biết đang thanh toán cho cái gì
+    if (registrationId == null && orderId == null) {
+      throw Exception(
+        "Thiếu thông tin thanh toán (cần registrationId hoặc orderId)",
+      );
+    }
+
     final res = await _api.postJson(
       '/api/payments/create-vnpay',
       body: {
-        'registrationId': registrationId,
+        if (registrationId != null) 'registrationId': registrationId,
+        if (orderId != null) 'orderId': orderId,
         'amount': amount,
         if (locale != null) 'locale': locale,
       },

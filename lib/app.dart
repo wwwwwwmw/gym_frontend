@@ -4,32 +4,33 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'theme/app_theme.dart';
 
-// Import ApiClient và Banner services
+// Import ApiClient
 import 'core/api_client.dart';
+
+// Import các Services & Providers
 import 'features/banners/banner_service.dart';
 import 'features/banners/banner_provider.dart';
 
 import 'features/auth/auth_provider.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/signup_provider.dart';
-
 import 'features/auth/signup_screen.dart' as signupScreen;
 import 'features/auth/verify_email_screen.dart';
 
 import 'features/dashboards/trainer_dashboard.dart';
-
 import 'features/member/member_home_screen.dart';
 
 import 'features/discounts/discount_provider.dart';
-
 import 'features/work_schedules/work_schedule_provider.dart';
 import 'features/work_schedules/work_schedules_screen.dart';
 
 import 'features/registrations/registration_provider.dart';
-
 import 'features/attendance/attendance_provider.dart';
 import 'features/attendance/attendance_screen.dart';
 import 'features/attendance/qr_checkin_screen.dart';
+
+// ✅ QUAN TRỌNG: Import PaymentService
+import 'features/payments/payment_service.dart';
 
 import 'features/member/member_register_package_screen.dart';
 import 'features/discounts/active_discounts_screen.dart';
@@ -103,10 +104,15 @@ class _GymAppState extends State<GymApp> {
         ChangeNotifierProvider(create: (_) => WorkScheduleProvider()),
         ChangeNotifierProvider(create: (_) => RegistrationProvider()),
         ChangeNotifierProvider(create: (_) => AttendanceProvider()),
-        // ✅ Thêm BannerProvider vào đây
+
+        // Banner Provider
         ChangeNotifierProvider(
           create: (_) => BannerProvider(BannerService(ApiClient())),
         ),
+
+        // ✅ THÊM DÒNG NÀY: Cung cấp PaymentService cho toàn bộ App
+        // Sử dụng Provider thường (không phải ChangeNotifier) vì PaymentService chỉ chứa logic
+        Provider<PaymentService>(create: (_) => PaymentService(ApiClient())),
       ],
       child: MaterialApp(
         title: 'Gym Manager',
