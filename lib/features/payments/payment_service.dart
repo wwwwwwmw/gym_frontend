@@ -62,4 +62,45 @@ class PaymentService {
     );
     return res['paymentUrl'] as String;
   }
+
+  /// Tạo thanh toán mới (hỗ trợ cả VNPAY và tiền mặt)
+  Future<Map<String, dynamic>> createPayment({
+    String? registrationId, // Cho gói tập (Optional)
+    String? orderId, // Cho đơn hàng sản phẩm (Optional)
+    required num amount,
+    String? locale,
+    required String paymentMethod, // "VNPAY" hoặc "CASH"
+  }) async {
+    // Validation: Phải có ít nhất 1 loại ID để biết đang thanh toán cho cái gì
+    if (registrationId == null && orderId == null) {
+      throw Exception(
+        "Thiếu thông tin thanh toán (cần registrationId hoặc orderId)",
+      );
+    }
+
+    final res = await _api.postJson(
+      '/api/payments/create',
+      body: {
+        if (registrationId != null) 'registrationId': registrationId,
+        if (orderId != null) 'orderId': orderId,
+        'amount': amount,
+        'paymentMethod': paymentMethod,
+        if (locale != null) 'locale': locale,
+      },
+    );
+    
+    return res;
+  }
+
+  /// Xác nhận thanh toán tiền mặt (dành cho admin)
+  Future<Map<String, dynamic>> confirmCashPayment(String paymentId) async {
+    final res = await _api.postJson(
+      '/api/payments/confirm-cash',
+      body: {
+        'paymentId': paymentId,
+      },
+    );
+    
+    return res;
+  }
 }

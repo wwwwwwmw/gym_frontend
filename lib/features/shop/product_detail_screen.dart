@@ -35,35 +35,82 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     return '$cleanBase$cleanPath';
   }
 
-  // Xử lý Mua Hàng
+  // Xử lý Mua Hàng - Hiển thị lựa chọn phương thức thanh toán
   Future<void> _handleBuyNow() async {
+    // Hiển thị dialog chọn phương thức thanh toán
+    final paymentMethod = await showDialog<String>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Chọn phương thức thanh toán'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.money),
+                title: const Text('Thanh toán tiền mặt'),
+                subtitle: const Text('Thanh toán tại quầy'),
+                onTap: () => Navigator.pop(context, 'CASH'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.credit_card),
+                title: const Text('Thanh toán online (VNPay)'),
+                subtitle: const Text('Thanh toán qua thẻ/ngân hàng'),
+                onTap: () => Navigator.pop(context, 'VNPAY'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (paymentMethod == null) return; // User cancelled
+
     setState(() => _isLoading = true);
     try {
-      // 2. Gọi API tạo đơn hàng thật
-      final orderId = await _productService.createOrder(widget.product.id);
+      if (paymentMethod == 'CASH') {
+        // Xử lý thanh toán tiền mặt
+        final result = await _paymentService.createPayment(
+          orderId: await _productService.createOrder(widget.product.id),
+          amount: widget.product.price,
+          paymentMethod: 'CASH',
+        );
 
-      // 3. Gọi API lấy link thanh toán VNPay (Dùng _paymentService đã khởi tạo)
-      if (!mounted) return;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message'] ?? 'Đã tạo phiếu thanh toán tiền mặt'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          // Có thể pop về màn hình trước đó
+          Navigator.pop(context);
+        }
+      } else {
+        // Xử lý thanh toán VNPAY
+        final orderId = await _productService.createOrder(widget.product.id);
+        
+        if (!mounted) return;
 
-      final paymentUrl = await _paymentService.createVNPayPayment(
-        orderId: orderId,
-        amount: widget.product.price,
-        locale: 'vn',
-      );
+        final paymentUrl = await _paymentService.createVNPayPayment(
+          orderId: orderId,
+          amount: widget.product.price,
+          locale: 'vn',
+        );
 
-      // 4. Mở trình duyệt thanh toán
-      if (mounted) {
-        final uri = Uri.parse(paymentUrl);
+        // Mở trình duyệt thanh toán
+        if (mounted) {
+          final uri = Uri.parse(paymentUrl);
 
-        // Thử mở link bằng trình duyệt ngoài
-        try {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-        } catch (e) {
-          // Fallback nếu lỗi
-          if (await canLaunchUrl(uri)) {
-            await launchUrl(uri);
-          } else {
-            throw 'Không thể mở trình duyệt. Vui lòng kiểm tra lại.';
+          try {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          } catch (e) {
+            if (await canLaunchUrl(uri)) {
+              await launchUrl(uri);
+            } else {
+              throw 'Không thể mở trình duyệt. Vui lòng kiểm tra lại.';
+            }
           }
         }
       }

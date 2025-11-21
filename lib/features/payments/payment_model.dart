@@ -84,12 +84,12 @@ class PaymentModel {
       print("Lỗi parse item: $e");
     }
 
-    // Nhận diện phương thức
-    String detectedMethod = 'cash';
-    if (m['method'] != null) {
-      detectedMethod = m['method'].toString();
+    // Nhận diện phương thức thanh toán
+    String detectedMethod = 'Tiền mặt';
+    if (m['paymentMethod'] != null) {
+      detectedMethod = m['paymentMethod'].toString() == 'VNPAY' ? 'VNPay' : 'Tiền mặt';
     } else if (m['vnpTransactionNo'] != null || m['vnpResponseCode'] != null) {
-      detectedMethod = 'vnpay';
+      detectedMethod = 'VNPay';
     }
 
     return PaymentModel(

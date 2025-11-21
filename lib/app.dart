@@ -23,6 +23,7 @@ import 'features/member/member_home_screen.dart';
 import 'features/discounts/discount_provider.dart';
 import 'features/work_schedules/work_schedule_provider.dart';
 import 'features/work_schedules/work_schedules_screen.dart';
+import 'features/work_schedules/trainer_work_schedule_calendar_screen.dart';
 
 import 'features/registrations/registration_provider.dart';
 import 'features/attendance/attendance_provider.dart';
@@ -177,6 +178,10 @@ class _GymAppState extends State<GymApp> {
             case '/work-schedules':
               return MaterialPageRoute(
                 builder: (_) => const WorkSchedulesScreen(),
+              );
+            case '/trainer/work-schedule-calendar':
+              return MaterialPageRoute(
+                builder: (_) => const TrainerWorkScheduleCalendarScreen(),
               );
             case '/trainer/my-students':
               return MaterialPageRoute(

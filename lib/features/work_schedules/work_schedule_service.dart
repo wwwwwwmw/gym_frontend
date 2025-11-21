@@ -35,6 +35,21 @@ class WorkScheduleService {
     );
     return (items, pg);
   }
+
+  Future<void> registerWorkShift(DateTime date, String shiftType) async {
+    final formattedDate = date.toIso8601String().split('T')[0]; // Format: YYYY-MM-DD
+    await _api.postJson(
+      '/api/work-schedules/register-shift',
+      body: {
+        'date': formattedDate,
+        'shiftType': shiftType,
+      },
+    );
+  }
+
+  Future<void> deleteWorkSchedule(String scheduleId) async {
+    await _api.delete('/api/work-schedules/my/$scheduleId');
+  }
 }
 
 class Pagination {

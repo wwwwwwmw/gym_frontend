@@ -7,10 +7,13 @@ class WorkScheduleProvider extends ChangeNotifier {
   WorkScheduleProvider() : _service = WorkScheduleService(ApiClient());
   final WorkScheduleService _service;
 
-  bool loading = false;
+  bool isLoading = false;
   String? error;
   List<WorkScheduleModel> items = [];
   Pagination? pagination;
+
+  // Getter for backward compatibility
+  List<WorkScheduleModel> get schedules => items;
 
   Future<void> fetchMy({
     String? date,
@@ -18,7 +21,7 @@ class WorkScheduleProvider extends ChangeNotifier {
     String? shiftType,
     int page = 1,
   }) async {
-    loading = true;
+    isLoading = true;
     error = null;
     notifyListeners();
     try {
@@ -33,7 +36,41 @@ class WorkScheduleProvider extends ChangeNotifier {
     } catch (e) {
       error = e.toString();
     } finally {
-      loading = false;
+      isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> registerWorkShift(DateTime date, String shiftType) async {
+    isLoading = true;
+    error = null;
+    notifyListeners();
+    try {
+      await _service.registerWorkShift(date, shiftType);
+      // Refresh the list after successful registration
+      await fetchMy();
+    } catch (e) {
+      error = e.toString();
+      rethrow; // Re-throw to handle in UI
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteWorkSchedule(String scheduleId) async {
+    isLoading = true;
+    error = null;
+    notifyListeners();
+    try {
+      await _service.deleteWorkSchedule(scheduleId);
+      // Refresh the list after successful deletion
+      await fetchMy();
+    } catch (e) {
+      error = e.toString();
+      rethrow; // Re-throw to handle in UI
+    } finally {
+      isLoading = false;
       notifyListeners();
     }
   }
