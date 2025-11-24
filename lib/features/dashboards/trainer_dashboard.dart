@@ -23,16 +23,17 @@ class _TrainerDashboardState extends State<TrainerDashboard>
       duration: const Duration(milliseconds: 800),
       vsync: this,
     );
-    
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
-    
+
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0, 0.3),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
-    
+
     // Start animation after build
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _controller.forward();
@@ -56,10 +57,7 @@ class _TrainerDashboardState extends State<TrainerDashboard>
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF667eea),
-                  Color(0xFF764ba2),
-                ],
+                colors: [Color(0xFF667eea), Color(0xFF764ba2)],
               ),
             ),
             child: SafeArea(
@@ -68,7 +66,7 @@ class _TrainerDashboardState extends State<TrainerDashboard>
                 children: [
                   // Header with welcome message and logout
                   _buildHeader(context),
-                  
+
                   // Main content with animation
                   Expanded(
                     child: Padding(
@@ -77,35 +75,45 @@ class _TrainerDashboardState extends State<TrainerDashboard>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           SizedBox(height: 20),
-                          
+
                           // Welcome text with fade animation
                           FadeTransition(
                             opacity: _fadeAnimation,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Chào mừng huấn luyện viên!',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                SizedBox(height: 8),
-                                Text(
-                                  'Quản lý lịch làm việc và học viên của bạn',
-                                  style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.8),
-                                    fontSize: 16,
-                                  ),
-                                ),
-                              ],
+                            child: Consumer<AuthProvider>(
+                              builder: (context, auth, child) {
+                                final userName =
+                                    auth.user?['fullName'] as String? ??
+                                    auth.user?['name'] as String? ??
+                                    'Huấn luyện viên';
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Chào mừng $userName!',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    SizedBox(height: 8),
+                                    Text(
+                                      'Quản lý lịch làm việc và học viên của bạn',
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.8,
+                                        ),
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
                             ),
                           ),
-                          
+
                           SizedBox(height: 30),
-                          
+
                           // Feature cards with slide animation
                           Expanded(
                             child: SlideTransition(
@@ -121,16 +129,22 @@ class _TrainerDashboardState extends State<TrainerDashboard>
                                     title: 'Lịch làm việc',
                                     subtitle: 'Xem lịch của bạn',
                                     color: Color(0xFFff6b6b),
-                                    onTap: () => Navigator.pushNamed(context, '/work-schedules'),
+                                    onTap: () => Navigator.pushNamed(
+                                      context,
+                                      '/work-schedules',
+                                    ),
                                     delay: 200,
                                   ),
                                   _buildAnimatedFeatureCard(
                                     context,
                                     icon: Icons.calendar_today,
-                                    title: 'Đăng ký ca',
-                                    subtitle: 'Đăng ký ca làm việc',
+                                    title: 'Lịch theo dõi',
+                                    subtitle: 'Xem ca làm việc',
                                     color: Color(0xFF4ecdc4),
-                                    onTap: () => Navigator.pushNamed(context, '/trainer/work-schedule-calendar'),
+                                    onTap: () => Navigator.pushNamed(
+                                      context,
+                                      '/trainer/work-schedule-calendar',
+                                    ),
                                     delay: 300,
                                   ),
                                   _buildAnimatedFeatureCard(
@@ -139,17 +153,11 @@ class _TrainerDashboardState extends State<TrainerDashboard>
                                     title: 'Học viên',
                                     subtitle: 'Quản lý học viên',
                                     color: Color(0xFF45b7d1),
-                                    onTap: () => Navigator.pushNamed(context, '/trainer/my-students'),
+                                    onTap: () => Navigator.pushNamed(
+                                      context,
+                                      '/trainer/my-students',
+                                    ),
                                     delay: 400,
-                                  ),
-                                  _buildAnimatedFeatureCard(
-                                    context,
-                                    icon: Icons.analytics,
-                                    title: 'Thống kê',
-                                    subtitle: 'Xem báo cáo',
-                                    color: Color(0xFFf9ca24),
-                                    onTap: () => _showComingSoon(context),
-                                    delay: 500,
                                   ),
                                 ],
                               ),
@@ -178,7 +186,7 @@ class _TrainerDashboardState extends State<TrainerDashboard>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Gym Trainer',
+                'Huấn Luyện Viên',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 28,
@@ -283,11 +291,7 @@ class _TrainerDashboardState extends State<TrainerDashboard>
                 color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: Icon(
-                icon,
-                size: 32,
-                color: color,
-              ),
+              child: Icon(icon, size: 32, color: color),
             ),
             SizedBox(height: 12),
             Text(
@@ -301,39 +305,11 @@ class _TrainerDashboardState extends State<TrainerDashboard>
             SizedBox(height: 4),
             Text(
               subtitle,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[600],
-              ),
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
               textAlign: TextAlign.center,
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  void _showComingSoon(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        title: Row(
-          children: [
-            Icon(Icons.info_outline, color: Color(0xFFf9ca24)),
-            SizedBox(width: 8),
-            Text('Coming Soon'),
-          ],
-        ),
-        content: Text('Tính năng này đang được phát triển. Vui lòng quay lại sau!'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('OK'),
-          ),
-        ],
       ),
     );
   }

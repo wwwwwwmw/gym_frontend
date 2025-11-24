@@ -29,6 +29,25 @@ class MemberService {
     );
   }
 
+  /// Lấy tuỳ chọn lịch tập của tôi
+  Future<Map<String, dynamic>> getMySchedulePreferences() async {
+    final res = await _api.getJson('/api/members/me/schedule-preferences');
+    return Map<String, dynamic>.from(res);
+  }
+
+  /// Cập nhật tuỳ chọn lịch tập của tôi (đơn giản: weekly MWF + shift)
+  Future<void> updateMySchedulePreferences({
+    required String shift,
+    List<int>? days,
+  }) async {
+    final payload = {
+      'weekly': (days ?? const [1, 3, 5])
+          .map((d) => {'day': d, 'shift': shift})
+          .toList(),
+    };
+    await _api.putJson('/api/members/me/schedule-preferences', body: payload);
+  }
+
   /// Lấy thông tin member theo ID (cho trainer/admin)
   Future<MemberModel> getMemberById(String id) async {
     final res = await _api.getJson('/api/members/$id');

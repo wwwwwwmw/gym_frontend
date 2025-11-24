@@ -164,7 +164,7 @@ class _WorkSchedulesScreenState extends State<WorkSchedulesScreen> {
   }
 
   String _statusVi(String v) {
-    switch (v) {
+    switch (v.toLowerCase()) {
       case 'scheduled':
         return 'Đã xếp lịch';
       case 'completed':
@@ -624,21 +624,29 @@ class _WorkSchedulesScreenState extends State<WorkSchedulesScreen> {
   }
 
   Widget _buildAnimatedScheduleList(List<WorkScheduleModel> items) {
+    // Sort items by date ascending (oldest to newest)
+    final sortedItems = List<WorkScheduleModel>.from(items);
+    sortedItems.sort((a, b) {
+      // Compare dates: earlier dates first
+      final dateA = DateTime(a.date.year, a.date.month, a.date.day);
+      final dateB = DateTime(b.date.year, b.date.month, b.date.day);
+      final dateCompare = dateA.compareTo(dateB);
+      if (dateCompare != 0) return dateCompare;
+      // If same date, sort by startTime
+      return a.startTime.compareTo(b.startTime);
+    });
+
     return ListView.builder(
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      itemCount: items.length,
+      itemCount: sortedItems.length,
       itemBuilder: (context, index) {
-        final schedule = items[index];
+        final schedule = sortedItems[index];
         return AnimatedContainer(
-          duration: Duration(milliseconds: 300 + (index * 100)),
+          duration: Duration(milliseconds: 300 + (index * 50)),
           curve: Curves.easeOut,
-          transform: Matrix4.translationValues(0.0, index * 10.0, 0.0),
-          child: Opacity(
-            opacity: 1.0 - (index * 0.1),
-            child: Container(
-              margin: EdgeInsets.only(bottom: 12),
-              child: _buildModernScheduleCard(schedule),
-            ),
+          child: Container(
+            margin: EdgeInsets.only(bottom: 12),
+            child: _buildModernScheduleCard(schedule),
           ),
         );
       },
@@ -650,7 +658,7 @@ class _WorkSchedulesScreenState extends State<WorkSchedulesScreen> {
     IconData shiftIcon;
     String shiftName;
 
-    switch (schedule.shiftType) {
+    switch (schedule.shiftType.toLowerCase()) {
       case 'morning':
         shiftColor = Colors.orange[400]!;
         shiftIcon = Icons.wb_sunny;
@@ -659,12 +667,12 @@ class _WorkSchedulesScreenState extends State<WorkSchedulesScreen> {
       case 'afternoon':
         shiftColor = Colors.blue[400]!;
         shiftIcon = Icons.wb_twilight;
-        shiftName = 'Chiều';
+        shiftName = 'Trưa';
         break;
       case 'evening':
         shiftColor = Colors.purple[400]!;
         shiftIcon = Icons.nightlight_round;
-        shiftName = 'Tối';
+        shiftName = 'Chiều';
         break;
       case 'night':
         shiftColor = Colors.indigo[400]!;
@@ -683,7 +691,7 @@ class _WorkSchedulesScreenState extends State<WorkSchedulesScreen> {
     }
 
     Color statusColor;
-    switch (schedule.status) {
+    switch (schedule.status.toLowerCase()) {
       case 'scheduled':
         statusColor = Colors.blue;
         break;
@@ -782,6 +790,7 @@ class _WorkSchedulesScreenState extends State<WorkSchedulesScreen> {
                           Text(
                             DateFormat(
                               'EEEE, dd/MM/yyyy',
+                              'vi_VN',
                             ).format(schedule.date),
                             style: TextStyle(
                               fontSize: 14,
@@ -904,7 +913,9 @@ class _WorkSchedulesScreenState extends State<WorkSchedulesScreen> {
 
   List<Map<String, String>> get _shiftTypeOptions => [
     {'value': 'morning', 'label': 'Sáng'},
-    {'value': 'afternoon', 'label': 'Chiều'},
-    {'value': 'evening', 'label': 'Tối'},
+    {'value': 'afternoon', 'label': 'Trưa'},
+    {'value': 'evening', 'label': 'Chiều'},
+    {'value': 'night', 'label': 'Đêm'},
+    {'value': 'full-day', 'label': 'Cả ngày'},
   ];
 }

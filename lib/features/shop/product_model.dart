@@ -4,6 +4,8 @@ class Product {
   final String description;
   final int price;
   final String? image;
+  final int stock;
+  final String status;
 
   Product({
     required this.id,
@@ -11,7 +13,12 @@ class Product {
     required this.description,
     required this.price,
     this.image,
+    this.stock = 0,
+    this.status = 'Hoạt động',
   });
+
+  // Helper method để kiểm tra sản phẩm có còn hàng không
+  bool get isAvailable => stock > 0 && status == 'Hoạt động';
 
   factory Product.fromJson(Map<String, dynamic> json) {
     return Product(
@@ -20,6 +27,8 @@ class Product {
       description: json['description'] ?? '',
       price: json['price'] ?? 0,
       image: json['imageUrl'],
+      stock: json['stock'] ?? 0,
+      status: json['status'] ?? 'Hoạt động',
     );
   }
 }

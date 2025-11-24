@@ -4,6 +4,8 @@ import 'package:gym_frontend/core/token_storage.dart';
 import 'package:gym_frontend/features/member/member_model.dart';
 import 'package:gym_frontend/features/member/member_service.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import 'package:gym_frontend/features/auth/auth_provider.dart';
 
 class MemberProfileScreen extends StatefulWidget {
   const MemberProfileScreen({super.key});
@@ -58,12 +60,14 @@ class _MemberProfileScreenState extends State<MemberProfileScreen> {
         actions: [
           if (_member != null)
             IconButton(
-              icon: const Icon(Icons.edit),
-              onPressed: () {
-                // TODO: Navigate to edit profile screen
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Tính năng đang phát triển')),
-                );
+              icon: const Icon(Icons.logout),
+              tooltip: 'Đăng xuất',
+              onPressed: () async {
+                try {
+                  await context.read<AuthProvider>().signOut();
+                } catch (_) {}
+                if (!mounted) return;
+                Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
               },
             ),
         ],

@@ -15,6 +15,13 @@ class QrCheckInScreen extends StatefulWidget {
 class _QrCheckInScreenState extends State<QrCheckInScreen> {
   final MobileScannerController _controller = MobileScannerController();
   bool _processing = false;
+  bool _cameraInitialized = false;
+  String? _cameraError;
+  
+  // ✅ Thêm debounce để tránh quét QR liên tục
+  DateTime? _lastScanTime;
+  String? _lastScannedCode;
+  static const Duration _scanCooldown = Duration(seconds: 3); // Cooldown 3 giây giữa các lần quét
   
   // Trạng thái hiển thị kết quả
   String? _error;
@@ -24,14 +31,73 @@ class _QrCheckInScreenState extends State<QrCheckInScreen> {
   IconData _statusIcon = Icons.check_circle;
 
   @override
+  void initState() {
+    super.initState();
+    // ✅ Khởi động camera khi màn hình được tạo
+    _initializeCamera();
+  }
+
+  Future<void> _initializeCamera() async {
+    try {
+      // ✅ Start camera
+      await _controller.start();
+      
+      // Đợi một chút để camera khởi động hoàn toàn
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      if (mounted) {
+        setState(() {
+          _cameraInitialized = true;
+          _cameraError = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        String errorMsg = 'Không thể khởi động camera';
+        final errorStr = e.toString().toLowerCase();
+        
+        if (errorStr.contains('permission')) {
+          errorMsg = 'Vui lòng cấp quyền truy cập camera trong Cài đặt';
+        } else if (errorStr.contains('camera')) {
+          errorMsg = 'Không thể truy cập camera. Vui lòng kiểm tra lại.';
+        } else {
+          errorMsg = 'Lỗi camera: ${e.toString()}';
+        }
+        
+        setState(() {
+          _cameraInitialized = false;
+          _cameraError = errorMsg;
+        });
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
     super.dispose();
   }
 
   Future<void> _handleQrCode(String raw) async {
-    if (_processing) return;
+    // ✅ Kiểm tra debounce: Không cho quét liên tục
+    if (_processing) {
+      return; // Đang xử lý, bỏ qua
+    }
+    
     if (raw.isEmpty) return;
+    
+    // ✅ Kiểm tra cooldown: Nếu vừa quét gần đây (< 3 giây) và cùng mã QR, bỏ qua
+    final now = DateTime.now();
+    if (_lastScanTime != null && 
+        _lastScannedCode == raw &&
+        now.difference(_lastScanTime!) < _scanCooldown) {
+      // Đang trong cooldown, bỏ qua
+      return;
+    }
+    
+    // ✅ Lưu thời gian và mã QR vừa quét
+    _lastScanTime = now;
+    _lastScannedCode = raw;
 
     setState(() {
       _processing = true;
@@ -54,14 +120,22 @@ class _QrCheckInScreenState extends State<QrCheckInScreen> {
       // Gọi API (lấy về Map full data)
       final res = await attendanceService.checkInWithQr(token);
       
+      // ✅ Kiểm tra success flag từ response
+      if (res['success'] == false) {
+        throw Exception(res['message'] as String? ?? 'Thao tác thất bại');
+      }
+      
       final message = res['message'] as String? ?? 'Thành công!';
       final type = res['type'] as String? ?? 'CHECK_IN';
       final summary = res['workoutSummary'] as Map<String, dynamic>?;
+      final remaining = res['remainingSessionsLeft'] as int?;
+      // final packageType = res['packageType'] as String?; // Loại gói: "session" hoặc "daily" (có thể dùng sau)
 
       if (!mounted) return;
 
       setState(() {
         _successMessage = message;
+        _processing = false; // ✅ Reset processing state khi thành công
         
         // Xử lý giao diện dựa trên TYPE trả về từ Server
         switch (type) {
@@ -70,7 +144,12 @@ class _QrCheckInScreenState extends State<QrCheckInScreen> {
             _statusIcon = Icons.logout;
             if (summary != null) {
                final minutes = summary['durationMinutes'];
-               _subMessage = 'Tổng thời gian: $minutes phút';
+               final sessionsText = remaining != null
+                   ? ' · Số buổi còn lại: $remaining'
+                   : '';
+               _subMessage = 'Tổng thời gian: $minutes phút$sessionsText';
+            } else if (remaining != null) {
+               _subMessage = 'Số buổi còn lại: $remaining';
             }
             break;
             
@@ -83,6 +162,10 @@ class _QrCheckInScreenState extends State<QrCheckInScreen> {
           default:
             _statusColor = Colors.green.shade700; // Màu xanh mặc định
             _statusIcon = Icons.check_circle;
+            // Hiển thị thông tin buổi còn lại cho gói theo buổi
+            if (remaining != null) {
+              _subMessage = 'Số buổi còn lại: $remaining';
+            }
             break;
         }
       });
@@ -94,18 +177,54 @@ class _QrCheckInScreenState extends State<QrCheckInScreen> {
       }
     } catch (e) {
       if (mounted) {
+        // ✅ Cải thiện xử lý lỗi: Extract message từ exception và làm thân thiện hơn
+        String errorMessage = 'Đã xảy ra lỗi';
+        try {
+          final errorStr = e.toString();
+          
+          // Thử extract message từ format "Exception: message" hoặc "Error: message"
+          String rawMessage = errorStr;
+          if (errorStr.contains('Exception: ')) {
+            rawMessage = errorStr.split('Exception: ').last;
+          } else if (errorStr.contains('Error: ')) {
+            rawMessage = errorStr.split('Error: ').last;
+          }
+          
+          // ✅ Làm thông báo thân thiện hơn
+          if (rawMessage.contains('đã sử dụng buổi tập hôm nay')) {
+            errorMessage = 'Bạn đã sử dụng buổi tập hôm nay rồi.\nGói tập theo buổi chỉ cho phép 1 buổi/ngày.';
+          } else if (rawMessage.contains('đang trong buổi tập')) {
+            errorMessage = 'Bạn đang trong buổi tập.\nVui lòng check-out trước khi bắt đầu buổi tập mới.';
+          } else if (rawMessage.contains('không có gói tập đang hoạt động')) {
+            errorMessage = 'Bạn chưa có gói tập đang hoạt động.\nVui lòng đăng ký gói tập trước khi check-in.';
+          } else if (rawMessage.contains('đã hết số buổi')) {
+            errorMessage = 'Gói tập của bạn đã hết số buổi.\nVui lòng đăng ký gói tập mới.';
+          } else if (rawMessage.contains('đã check-in rồi')) {
+            errorMessage = 'Bạn đã check-in rồi.\nVui lòng check-out trước khi check-in lại.';
+          } else {
+            errorMessage = rawMessage;
+          }
+        } catch (_) {
+          errorMessage = 'Đã xảy ra lỗi. Vui lòng thử lại sau.';
+        }
+        
         setState(() {
-          _error = e.toString().replaceAll('Exception: ', '');
+          _error = errorMessage;
+          _processing = false; // ✅ Reset processing state ngay khi có lỗi
+        });
+        
+        // ✅ Tự động ẩn lỗi sau 5 giây (tăng từ 3 giây) và cho phép quét lại
+        Future.delayed(const Duration(seconds: 5), () {
+          if (mounted) {
+            setState(() {
+              _error = null;
+              // Reset last scan time để cho phép quét lại
+              _lastScanTime = null;
+              _lastScannedCode = null;
+            });
+          }
         });
       }
-      Future.delayed(const Duration(seconds: 3), () {
-        if (mounted) {
-          setState(() {
-            _error = null;
-            _processing = false;
-          });
-        }
-      });
     }
   }
 
@@ -122,17 +241,77 @@ class _QrCheckInScreenState extends State<QrCheckInScreen> {
       ),
       body: Stack(
         children: [
-          // Camera scanner
-          MobileScanner(
-            controller: _controller,
-            onDetect: (capture) {
-              final barcodes = capture.barcodes;
-              if (barcodes.isEmpty) return;
-              final raw = barcodes.first.rawValue;
-              if (raw == null || raw.isEmpty) return;
-              _handleQrCode(raw);
-            },
-          ),
+          // Camera scanner - Chỉ hiển thị khi camera đã khởi động và không đang xử lý
+          if (_cameraInitialized && _cameraError == null && !_processing)
+            MobileScanner(
+              controller: _controller,
+              onDetect: (capture) {
+                // ✅ Chỉ xử lý khi không đang processing
+                if (_processing) return;
+                
+                final barcodes = capture.barcodes;
+                if (barcodes.isEmpty) return;
+                final raw = barcodes.first.rawValue;
+                if (raw == null || raw.isEmpty) return;
+                
+                _handleQrCode(raw);
+              },
+            )
+          else if (_cameraError != null)
+            // Hiển thị lỗi camera
+            Container(
+              color: Colors.black,
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.camera_alt_outlined,
+                        size: 80,
+                        color: Colors.white70,
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        _cameraError!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      ElevatedButton(
+                        onPressed: () {
+                          _initializeCamera();
+                        },
+                        child: const Text('Thử lại'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          else
+            // Loading camera
+            Container(
+              color: Colors.black,
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: Colors.white),
+                    SizedBox(height: 16),
+                    Text(
+                      'Đang khởi động camera...',
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    ),
+                  ],
+                ),
+              ),
+            ),
 
           // Khung ngắm (Overlay) - Ẩn khi đang hiện kết quả
           if (!_processing && _error == null && _successMessage == null)
@@ -270,12 +449,29 @@ class _QrCheckInScreenState extends State<QrCheckInScreen> {
                           color: Colors.white,
                           fontSize: 18,
                           fontWeight: FontWeight.w500,
+                          height: 1.5, // ✅ Tăng line height để dễ đọc hơn
                         ),
                       ),
                       const SizedBox(height: 24),
                       const Text(
-                        'Thử lại sau 3 giây...',
+                        'Vui lòng đợi 5 giây trước khi quét lại...',
                         style: TextStyle(color: Colors.white70, fontSize: 14),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            _error = null;
+                            _lastScanTime = null;
+                            _lastScannedCode = null;
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: Colors.red,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        ),
+                        child: const Text('Đóng'),
                       ),
                     ],
                   ),

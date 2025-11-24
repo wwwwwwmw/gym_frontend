@@ -19,26 +19,82 @@ class MemberHomeScreen extends StatefulWidget {
   State<MemberHomeScreen> createState() => _MemberHomeScreenState();
 }
 
-class _MemberHomeScreenState extends State<MemberHomeScreen> {
+class _MemberHomeScreenState extends State<MemberHomeScreen> with WidgetsBindingObserver {
   final PageController _pageController = PageController(initialPage: 1000);
   Timer? _autoScrollTimer;
+  Timer? _productsRefreshTimer;
   int _currentPage = 0;
 
   final ProductService _productService = ProductService();
 
-  // QUAN TRỌNG: Lưu Future vào biến để tránh gọi lại API mỗi khi rebuild
-  late Future<List<Product>> _productsFuture;
+  // Thay đổi từ Future sang List để có thể update dễ dàng
+  List<Product> _products = [];
+  bool _productsLoading = true;
+  String? _productsError;
 
   @override
   void initState() {
     super.initState();
-    // Gọi API 1 lần duy nhất tại đây
-    _productsFuture = _productService.getProducts();
+    WidgetsBinding.instance.addObserver(this);
+    
+    // Load sản phẩm lần đầu
+    _loadProducts();
+
+    // Bắt đầu auto-reload sản phẩm mỗi 10 giây
+    _startProductsAutoRefresh();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<BannerProvider>().fetchHomeBanners().then((_) {
         _startAutoScroll();
       });
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Khi app được resume (quay lại foreground), reload sản phẩm ngay lập tức
+    if (state == AppLifecycleState.resumed) {
+      _loadProducts();
+    }
+  }
+
+  // Load sản phẩm từ API
+  Future<void> _loadProducts() async {
+    if (!mounted) return;
+    
+    setState(() {
+      _productsLoading = true;
+      _productsError = null;
+    });
+
+    try {
+      final products = await _productService.getProducts();
+      if (mounted) {
+        setState(() {
+          _products = products;
+          _productsLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _productsError = e.toString();
+          _productsLoading = false;
+        });
+      }
+    }
+  }
+
+  // Bắt đầu auto-refresh sản phẩm mỗi 10 giây
+  void _startProductsAutoRefresh() {
+    _productsRefreshTimer?.cancel();
+    _productsRefreshTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      _loadProducts();
     });
   }
 
@@ -58,6 +114,8 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> {
   @override
   void dispose() {
     _autoScrollTimer?.cancel();
+    _productsRefreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
     super.dispose();
   }
@@ -541,29 +599,32 @@ class _MemberHomeScreenState extends State<MemberHomeScreen> {
         ),
         const SizedBox(height: 15),
 
-        // Sử dụng FutureBuilder với biến Future đã lưu
-        FutureBuilder<List<Product>>(
-          future: _productsFuture, // QUAN TRỌNG: Dùng biến _productsFuture
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20),
-                child: Text("Không thể tải sản phẩm"),
-              );
-            }
-            if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20),
-                child: Text("Chưa có sản phẩm nào."),
-              );
-            }
+        // Hiển thị sản phẩm với auto-refresh
+        _productsLoading && _products.isEmpty
+            ? const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(20.0),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            : _productsError != null
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Text(
+                      "Không thể tải sản phẩm: $_productsError",
+                      style: TextStyle(color: Colors.red[700]),
+                    ),
+                  )
+                : _products.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 20),
+                        child: Text("Chưa có sản phẩm nào."),
+                      )
+                    : Builder(
+                        builder: (context) {
+                          final products = _products;
 
-            final products = snapshot.data!;
-
-            return SizedBox(
+                          return SizedBox(
               height: 230,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,

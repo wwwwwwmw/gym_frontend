@@ -123,7 +123,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     TextFormField(
                       controller: _email,
                       decoration: const InputDecoration(
-                        hintText: 'Ex: coffee@gmail.com',
+                        hintText: 'VD: coffee@gmail.com',
                         prefixIcon: Icon(Icons.email_outlined),
                         border: OutlineInputBorder(),
                       ),

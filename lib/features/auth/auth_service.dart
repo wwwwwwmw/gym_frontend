@@ -38,7 +38,7 @@ class AuthService {
     final access = res['accessToken'] as String?;
     final refresh = res['refreshToken'] as String?;
     if (access == null || refresh == null) {
-      throw ApiException('Thiếu token trong phản hồi đăng nhập');
+      throw ApiException('Không nhận được token đăng nhập. Vui lòng thử lại.');
     }
 
     await _storage.saveTokens(access: access, refresh: refresh);

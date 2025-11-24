@@ -23,6 +23,7 @@ class _TrainerWorkScheduleCalendarScreenState
   late AnimationController _animationController;
   String _selectedFilter = 'all';
   bool _showFilters = false;
+  
 
   @override
   void initState() {
@@ -47,179 +48,25 @@ class _TrainerWorkScheduleCalendarScreenState
     super.dispose();
   }
 
-  void _showShiftSelectionDialog(DateTime selectedDate) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Text(
-            'Chọn ca làm việc',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-          ),
-          content: Text(
-            'Ngày ${DateFormat('dd/MM/yyyy').format(selectedDate)}',
-            style: TextStyle(fontSize: 15),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Hủy'),
-            ),
-            ElevatedButton.icon(
-              onPressed: () => _registerShift(selectedDate, 'morning'),
-              icon: Icon(Icons.wb_sunny, color: Colors.orange),
-              label: Text('Ca Sáng (06:00-12:00)', style: TextStyle(fontSize: 13)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange[100],
-                foregroundColor: Colors.orange[800],
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-            SizedBox(height: 8),
-            ElevatedButton.icon(
-              onPressed: () => _registerShift(selectedDate, 'afternoon'),
-              icon: Icon(Icons.wb_twilight, color: Colors.blue),
-              label: Text('Ca Chiều (12:00-18:00)', style: TextStyle(fontSize: 13)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue[100],
-                foregroundColor: Colors.blue[800],
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-            SizedBox(height: 8),
-            ElevatedButton.icon(
-              onPressed: () => _registerShift(selectedDate, 'evening'),
-              icon: Icon(Icons.nightlight_round, color: Colors.purple),
-              label: Text('Ca Tối (18:00-22:00)', style: TextStyle(fontSize: 13)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple[100],
-                foregroundColor: Colors.purple[800],
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-          ],
-          actionsAlignment: MainAxisAlignment.spaceEvenly,
-          actionsPadding: EdgeInsets.all(16),
-        );
-      },
-    );
-  }
-
-  Future<bool> _showDeleteConfirmationDialog(WorkScheduleModel schedule) async {
-    return await showDialog<bool>(
-          context: context,
-          builder: (BuildContext context) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              title: Text('Xác nhận xóa', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-              content: Text(
-                'Bạn có chắc chắn muốn xóa ca làm việc ${DateFormat('dd/MM/yyyy').format(schedule.date)} - ${schedule.shiftType.toUpperCase()}?',
-                style: TextStyle(fontSize: 14),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: Text('Hủy'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  child: Text('Xóa', style: TextStyle(color: Colors.red)),
-                ),
-              ],
-            );
-          },
-        ) ??
-        false;
-  }
-
-  Future<void> _deleteSchedule(WorkScheduleModel schedule) async {
-    try {
-      final provider = context.read<WorkScheduleProvider>();
-      await provider.deleteWorkSchedule(schedule.id);
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Xóa ca làm việc thành công!'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
-        ),
-      );
-    } catch (error) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Có lỗi xảy ra khi xóa ca làm việc'),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 3),
-        ),
-      );
-    }
-  }
-
-  Future<void> _registerShift(DateTime date, String shiftType) async {
-    Navigator.pop(context); // Đóng dialog
-
-    try {
-      final provider = context.read<WorkScheduleProvider>();
-      await provider.registerWorkShift(date, shiftType);
-
-      if (!mounted) return;
-
-      // Hiển thị thông báo thành công
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Đăng ký ca $shiftType thành công!'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
-        ),
-      );
-
-      // Refresh lại danh sách lịch
-      provider.fetchMy();
-    } catch (error) {
-      if (!mounted) return;
-
-      // Hiển thị thông báo lỗi
-      String errorMessage = 'Có lỗi xảy ra khi đăng ký ca';
-      if (error.toString().contains('duplicate') ||
-          error.toString().contains('trùng')) {
-        errorMessage = 'Đã đăng ký ca này rồi';
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 3),
-        ),
-      );
-    }
-  }
+  
 
   List<WorkScheduleModel> _getSchedulesForDay(DateTime day) {
     try {
       final provider = context.read<WorkScheduleProvider>();
+      // Normalize the input day to local date (year, month, day only)
+      final normalizedDay = DateTime(day.year, day.month, day.day);
+      
       return provider.schedules.where((schedule) {
+        // Normalize schedule date to local date (year, month, day only)
         final scheduleDate = DateTime(
           schedule.date.year,
           schedule.date.month,
           schedule.date.day,
         );
-        return scheduleDate == day;
+        // Compare normalized dates
+        return scheduleDate.year == normalizedDay.year &&
+               scheduleDate.month == normalizedDay.month &&
+               scheduleDate.day == normalizedDay.day;
       }).toList();
     } catch (e) {
       return [];
@@ -272,6 +119,10 @@ class _TrainerWorkScheduleCalendarScreenState
                           onPressed: () => provider.fetchMy(),
                         ),
                         IconButton(
+                          icon: Icon(Icons.people, color: Colors.white),
+                          onPressed: () => Navigator.pushNamed(context, '/trainer/my-students'),
+                        ),
+                        IconButton(
                           icon: Icon(Icons.filter_list, color: Colors.white),
                           onPressed: () {
                             setState(() {
@@ -289,6 +140,8 @@ class _TrainerWorkScheduleCalendarScreenState
             // Filter Section
             if (_showFilters) _buildFilterSection(),
 
+            
+
             // Main Content
             Expanded(
               child: Container(
@@ -304,9 +157,6 @@ class _TrainerWorkScheduleCalendarScreenState
                   children: [
                     // Calendar Section
                     _buildCalendarSection(),
-
-                    // Legend
-                    _buildLegend(),
 
                     // Schedule List
                     Expanded(child: _buildScheduleList(provider)),
@@ -341,9 +191,13 @@ class _TrainerWorkScheduleCalendarScreenState
                   SizedBox(width: 8),
                   _buildFilterChip('Sáng', 'morning'),
                   SizedBox(width: 8),
-                  _buildFilterChip('Chiều', 'afternoon'),
+                  _buildFilterChip('Trưa', 'afternoon'),
                   SizedBox(width: 8),
-                  _buildFilterChip('Tối', 'evening'),
+                  _buildFilterChip('Chiều', 'evening'),
+                  SizedBox(width: 8),
+                  _buildFilterChip('Đêm', 'night'),
+                  SizedBox(width: 8),
+                  _buildFilterChip('Cả ngày', 'full-day'),
                 ],
               ),
             ),
@@ -398,7 +252,7 @@ class _TrainerWorkScheduleCalendarScreenState
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Chọn ngày để đăng ký',
+                  'Lịch làm việc theo ngày',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -433,8 +287,8 @@ class _TrainerWorkScheduleCalendarScreenState
           ),
         ],
       ),
-      child: TableCalendar(
-        firstDay: DateTime.now(),
+      child:       TableCalendar(
+        firstDay: DateTime.now().subtract(Duration(days: 30)),
         lastDay: DateTime.now().add(Duration(days: 90)),
         focusedDay: _focusedDay,
         calendarFormat: _calendarFormat,
@@ -488,21 +342,7 @@ class _TrainerWorkScheduleCalendarScreenState
             _selectedDay = selectedDay;
             _focusedDay = focusedDay;
           });
-
-          // Add haptic feedback
           HapticFeedback.selectionClick();
-
-          // Chỉ cho phép đăng ký từ hôm nay trở đi
-          if (selectedDay.isAfter(DateTime.now().subtract(Duration(days: 1)))) {
-            _showShiftSelectionDialog(selectedDay);
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Không thể đăng ký lịch cho ngày đã qua'),
-                backgroundColor: Colors.orange,
-              ),
-            );
-          }
         },
         onFormatChanged: (format) {
           if (_calendarFormat != format) {
@@ -512,29 +352,30 @@ class _TrainerWorkScheduleCalendarScreenState
           }
         },
         onPageChanged: (focusedDay) {
-          _focusedDay = focusedDay;
+          setState(() {
+            _focusedDay = focusedDay;
+          });
+          // Note: Không tự động fetch khi chuyển trang để tránh spam API
+          // User có thể dùng nút refresh nếu cần
         },
-      ),
-    );
-  }
-
-  Widget _buildLegend() {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildLegendItem('Sáng', Colors.orange[400]!),
-          _buildLegendItem('Chiều', Colors.blue[400]!),
-          _buildLegendItem('Tối', Colors.purple[400]!),
-          _buildLegendItem('Đã đăng ký', Colors.green[400]!),
-        ],
       ),
     );
   }
 
   Widget _buildScheduleList(WorkScheduleProvider provider) {
     final filteredSchedules = _getFilteredSchedules(provider.schedules);
+    
+    // Sort schedules by date ascending (oldest to newest)
+    final sortedSchedules = List<WorkScheduleModel>.from(filteredSchedules);
+    sortedSchedules.sort((a, b) {
+      // Compare dates: earlier dates first
+      final dateA = DateTime(a.date.year, a.date.month, a.date.day);
+      final dateB = DateTime(b.date.year, b.date.month, b.date.day);
+      final dateCompare = dateA.compareTo(dateB);
+      if (dateCompare != 0) return dateCompare;
+      // If same date, sort by startTime
+      return a.startTime.compareTo(b.startTime);
+    });
 
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 16),
@@ -559,7 +400,7 @@ class _TrainerWorkScheduleCalendarScreenState
                 ),
               ),
               Text(
-                '${filteredSchedules.length} ca',
+                '${sortedSchedules.length} ca',
                 style: TextStyle(fontSize: 13, color: Colors.grey[600]),
               ),
             ],
@@ -576,51 +417,16 @@ class _TrainerWorkScheduleCalendarScreenState
                       ),
                     ),
                   )
-                : filteredSchedules.isEmpty
+                : sortedSchedules.isEmpty
                 ? _buildEmptyState()
                 : ListView.builder(
-                    itemCount: filteredSchedules.length,
+                    itemCount: sortedSchedules.length,
                     padding: EdgeInsets.only(bottom: 16),
                     itemBuilder: (context, index) {
-                      final schedule = filteredSchedules[index];
-                      return AnimatedBuilder(
-                        animation: _animationController,
-                        builder: (context, child) {
-                          return Transform.translate(
-                            offset: Offset(
-                              0,
-                              (1 - _animationController.value) * 50,
-                            ),
-                            child: Opacity(
-                              opacity: _animationController.value,
-                              child: Dismissible(
-                                key: Key(schedule.id),
-                                direction: DismissDirection.endToStart,
-                                background: Container(
-                                  alignment: Alignment.centerRight,
-                                  padding: EdgeInsets.only(right: 20),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red,
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Icon(
-                                    Icons.delete,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                confirmDismiss: (direction) async {
-                                  return await _showDeleteConfirmationDialog(
-                                    schedule,
-                                  );
-                                },
-                                onDismissed: (direction) {
-                                  _deleteSchedule(schedule);
-                                },
-                                child: _buildModernScheduleCard(schedule),
-                              ),
-                            ),
-                          );
-                        },
+                      final schedule = sortedSchedules[index];
+                      return Container(
+                        margin: EdgeInsets.only(bottom: 12),
+                        child: _buildModernScheduleCard(schedule),
                       );
                     },
                   ),
@@ -636,7 +442,7 @@ class _TrainerWorkScheduleCalendarScreenState
     if (schedules.isEmpty) return [];
     if (_selectedFilter == 'all') return schedules;
     return schedules
-        .where((schedule) => schedule.shiftType == _selectedFilter)
+        .where((schedule) => schedule.shiftType.toLowerCase() == _selectedFilter.toLowerCase())
         .toList();
   }
 
@@ -657,8 +463,8 @@ class _TrainerWorkScheduleCalendarScreenState
           ),
           SizedBox(height: 8),
           Text(
-            'Hãy đăng ký ca làm việc để bắt đầu',
-            style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+            'Bạn chưa có lịch trong khoảng này',
+          style: TextStyle(fontSize: 13, color: Colors.grey[500]),
           ),
         ],
       ),
@@ -725,7 +531,7 @@ class _TrainerWorkScheduleCalendarScreenState
     IconData shiftIcon;
     String shiftName;
 
-    switch (schedule.shiftType) {
+    switch (schedule.shiftType.toLowerCase()) {
       case 'morning':
         shiftColor = Colors.orange[400]!;
         shiftIcon = Icons.wb_sunny;
@@ -734,12 +540,22 @@ class _TrainerWorkScheduleCalendarScreenState
       case 'afternoon':
         shiftColor = Colors.blue[400]!;
         shiftIcon = Icons.wb_twilight;
-        shiftName = 'Ca Chiều';
+        shiftName = 'Ca Trưa';
         break;
       case 'evening':
         shiftColor = Colors.purple[400]!;
         shiftIcon = Icons.nightlight_round;
-        shiftName = 'Ca Tối';
+        shiftName = 'Ca Chiều';
+        break;
+      case 'night':
+        shiftColor = Colors.indigo[400]!;
+        shiftIcon = Icons.nightlight_round;
+        shiftName = 'Ca Đêm';
+        break;
+      case 'full-day':
+        shiftColor = Colors.green[400]!;
+        shiftIcon = Icons.today;
+        shiftName = 'Ca Cả Ngày';
         break;
       default:
         shiftColor = Colors.grey[400]!;
@@ -782,7 +598,7 @@ class _TrainerWorkScheduleCalendarScreenState
           child: Icon(shiftIcon, color: Colors.white, size: 24),
         ),
         title: Text(
-          '${DateFormat('dd/MM/yyyy').format(schedule.date)} - $shiftName',
+          '${DateFormat('dd/MM/yyyy', 'vi_VN').format(schedule.date)} - $shiftName',
           style: TextStyle(
             fontWeight: FontWeight.w600,
             color: Colors.grey[800],
@@ -815,25 +631,8 @@ class _TrainerWorkScheduleCalendarScreenState
     );
   }
 
-  Widget _buildLegendItem(String label, Color color) {
-    return Row(
-      children: [
-        Container(
-          width: 16,
-          height: 16,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ),
-        SizedBox(width: 4),
-        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
-      ],
-    );
-  }
-
   String _getStatusText(String status) {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case 'scheduled':
         return 'Đã lên lịch';
       case 'completed':
@@ -847,8 +646,12 @@ class _TrainerWorkScheduleCalendarScreenState
     }
   }
 
+  
+
+  
+
   Color _getStatusColor(String status) {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case 'scheduled':
         return Colors.blue;
       case 'completed':

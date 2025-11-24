@@ -8,11 +8,14 @@ class TrainerService {
 
   /// Lấy danh sách trainers đang hoạt động
   Future<List<TrainerModel>> getActiveTrainers() async {
-    final res = await _api.getJson('/api/employees/trainers/active');
-    final trainers =
-        res['trainers'] as List? ?? res['employees'] as List? ?? [];
+    final Map<String, dynamic> res = await _api.getJson(
+      '/api/employees/trainers/active',
+    );
+    final dynamic raw = res['trainers'] ?? res['data'] ?? res['employees'];
+    final List<dynamic> trainers = raw is List ? raw : const [];
     return trainers
-        .map((e) => TrainerModel.fromMap(Map<String, dynamic>.from(e as Map)))
+        .whereType<Map>()
+        .map((e) => TrainerModel.fromMap(Map<String, dynamic>.from(e)))
         .toList();
   }
 }

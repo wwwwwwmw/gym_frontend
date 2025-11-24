@@ -14,6 +14,7 @@ class RegistrationModel {
   final String? statusReason;
   final List<int>? memberPreferredDays;
   final String? memberPreferredShift;
+  final int? remainingSessions;
 
   RegistrationModel({
     required this.id,
@@ -31,6 +32,7 @@ class RegistrationModel {
     this.memberPreferredDays,
     this.memberPreferredShift,
     this.trainer,
+    this.remainingSessions,
   });
 
   factory RegistrationModel.fromJson(Map<String, dynamic> j) {
@@ -70,6 +72,9 @@ class RegistrationModel {
           .where((e) => e > 0)
           .toList(),
       memberPreferredShift: prefs?['shift']?.toString(),
+      remainingSessions: j['remaining_sessions'] != null
+          ? int.tryParse(j['remaining_sessions'].toString())
+          : null,
     );
   }
 
@@ -126,6 +131,8 @@ class PackageRef {
   final String? description;
   final List<String>? features;
   final String? imageUrl;
+  final bool? hasFixedSchedule;
+  final Map<String, dynamic>? schedule;
 
   PackageRef({
     required this.id,
@@ -135,6 +142,8 @@ class PackageRef {
     this.description,
     this.features,
     this.imageUrl,
+    this.hasFixedSchedule,
+    this.schedule,
   });
 
   factory PackageRef.fromJson(Map<String, dynamic> j) {
@@ -146,6 +155,12 @@ class PackageRef {
       description: j['description']?.toString(),
       features: (j['features'] as List?)?.map((e) => e.toString()).toList(),
       imageUrl: j['imageUrl']?.toString(),
+      hasFixedSchedule: j['hasFixedSchedule'] is bool
+          ? j['hasFixedSchedule'] as bool
+          : (j['hasFixedSchedule'] == 'true' || j['hasFixedSchedule'] == true),
+      schedule: j['schedule'] is Map
+          ? Map<String, dynamic>.from(j['schedule'] as Map)
+          : null,
     );
   }
 }

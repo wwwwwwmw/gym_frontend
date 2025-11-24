@@ -384,6 +384,30 @@ class _MemberCurrentPackageScreenState
 
                   const SizedBox(height: 12),
 
+                  if (r.trainer != null && r.trainer!.fullName.isNotEmpty) ...[
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.person_outline,
+                          size: 14,
+                          color: Colors.grey.shade600,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Huấn luyện viên: ${r.trainer!.fullName}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade700,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+
                   // FEATURES (if available)
                   if (r.package.features != null &&
                       r.package.features!.isNotEmpty) ...[

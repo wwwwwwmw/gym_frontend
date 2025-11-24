@@ -230,6 +230,48 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
+                // Hiển thị trạng thái tồn kho
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: widget.product.isAvailable 
+                        ? Colors.green.shade50 
+                        : Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: widget.product.isAvailable 
+                          ? Colors.green.shade200 
+                          : Colors.red.shade200,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        widget.product.isAvailable 
+                            ? Icons.check_circle 
+                            : Icons.cancel,
+                        color: widget.product.isAvailable 
+                            ? Colors.green 
+                            : Colors.red,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        widget.product.isAvailable 
+                            ? 'Còn hàng (${widget.product.stock} sản phẩm)'
+                            : 'Hết hàng',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: widget.product.isAvailable 
+                              ? Colors.green.shade700 
+                              : Colors.red.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
                 const Divider(),
                 const SizedBox(height: 8),
                 const Text(
@@ -258,15 +300,15 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: ElevatedButton(
-            onPressed: _isLoading ? null : _handleBuyNow,
+            onPressed: (_isLoading || !widget.product.isAvailable) ? null : _handleBuyNow,
             style: ElevatedButton.styleFrom(
-              backgroundColor: cs.error,
+              backgroundColor: widget.product.isAvailable ? cs.error : Colors.grey,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
-              elevation: 4,
+              elevation: widget.product.isAvailable ? 4 : 0,
             ),
             child: _isLoading
                 ? const SizedBox(
@@ -277,9 +319,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       strokeWidth: 2,
                     ),
                   )
-                : const Text(
-                    'MUA NGAY',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                : Text(
+                    widget.product.isAvailable ? 'MUA NGAY' : 'HẾT HÀNG',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
           ),
         ),

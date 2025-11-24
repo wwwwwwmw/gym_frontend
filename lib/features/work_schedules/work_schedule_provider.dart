@@ -24,6 +24,7 @@ class WorkScheduleProvider extends ChangeNotifier {
     isLoading = true;
     error = null;
     notifyListeners();
+    
     try {
       final (list, pg) = await _service.listMy(
         date: date,
@@ -33,42 +34,30 @@ class WorkScheduleProvider extends ChangeNotifier {
       );
       items = list;
       pagination = pg;
+      error = null; // Clear any previous errors
     } catch (e) {
-      error = e.toString();
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  Future<void> registerWorkShift(DateTime date, String shiftType) async {
-    isLoading = true;
-    error = null;
-    notifyListeners();
-    try {
-      await _service.registerWorkShift(date, shiftType);
-      // Refresh the list after successful registration
-      await fetchMy();
-    } catch (e) {
-      error = e.toString();
-      rethrow; // Re-throw to handle in UI
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  Future<void> deleteWorkSchedule(String scheduleId) async {
-    isLoading = true;
-    error = null;
-    notifyListeners();
-    try {
-      await _service.deleteWorkSchedule(scheduleId);
-      // Refresh the list after successful deletion
-      await fetchMy();
-    } catch (e) {
-      error = e.toString();
-      rethrow; // Re-throw to handle in UI
+      // Extract meaningful error message
+      String errorMessage = 'Không thể tải lịch làm việc';
+      if (e.toString().contains('401') || e.toString().contains('chưa đăng nhập')) {
+        errorMessage = 'Bạn chưa đăng nhập hoặc phiên đã hết hạn';
+      } else if (e.toString().contains('403') || e.toString().contains('quyền')) {
+        errorMessage = 'Bạn chưa có quyền xem lịch làm việc này';
+      } else if (e.toString().contains('404')) {
+        errorMessage = 'Không tìm thấy lịch làm việc';
+      } else if (e.toString().contains('500') || e.toString().contains('Máy chủ')) {
+        errorMessage = 'Máy chủ đang gặp sự cố. Vui lòng thử lại sau';
+      } else {
+        // Try to extract message from exception
+        final msg = e.toString();
+        if (msg.contains('Exception: ')) {
+          errorMessage = msg.split('Exception: ').last;
+        } else if (msg.length < 100) {
+          errorMessage = msg;
+        }
+      }
+      error = errorMessage;
+      items = []; // Clear items on error
+      pagination = null;
     } finally {
       isLoading = false;
       notifyListeners();

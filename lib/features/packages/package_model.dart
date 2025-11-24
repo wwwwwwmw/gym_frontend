@@ -9,6 +9,12 @@ class PackageModel {
   final int? maxSessions;
   final bool isPersonalTraining; // includes PT sessions / requires trainer
   final String? imageUrl; // optional image URL from backend
+  final bool? hasFixedSchedule; // có lịch tập cố định
+  final Map<String, dynamic>?
+  schedule; // lịch tập: {daysOfWeek: [1,3,5], startTime: "18:00", endTime: "19:30"}
+  final String? defaultTrainerId; // ID của PT mặc định
+  final Map<String, dynamic>?
+  defaultTrainer; // Thông tin PT mặc định (nếu được populate)
 
   PackageModel({
     required this.id,
@@ -21,6 +27,10 @@ class PackageModel {
     required this.maxSessions,
     required this.isPersonalTraining,
     this.imageUrl,
+    this.hasFixedSchedule,
+    this.schedule,
+    this.defaultTrainerId,
+    this.defaultTrainer,
   });
 
   factory PackageModel.fromMap(Map<String, dynamic> m) => PackageModel(
@@ -36,6 +46,19 @@ class PackageModel {
     maxSessions: m['maxSessions'] as int?,
     isPersonalTraining: (m['isPersonalTraining'] ?? false) as bool,
     imageUrl: m['imageUrl'] as String?,
+    hasFixedSchedule: m['hasFixedSchedule'] is bool
+        ? m['hasFixedSchedule'] as bool
+        : (m['hasFixedSchedule'] == 'true' || m['hasFixedSchedule'] == true),
+    schedule: m['schedule'] is Map
+        ? Map<String, dynamic>.from(m['schedule'] as Map)
+        : null,
+    defaultTrainerId: m['defaultTrainerId'] is Map
+        ? (m['defaultTrainerId']['_id'] ?? m['defaultTrainerId']['id'])
+              ?.toString()
+        : m['defaultTrainerId']?.toString(),
+    defaultTrainer: m['defaultTrainerId'] is Map
+        ? Map<String, dynamic>.from(m['defaultTrainerId'] as Map)
+        : null,
   );
 
   Map<String, dynamic> toMap() => {

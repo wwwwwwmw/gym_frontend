@@ -106,7 +106,25 @@ class AttendanceService {
           if (note != null) 'note': note,
         }),
       );
-      if (res.statusCode >= 300) throw ApiException('HTTP ${res.statusCode}');
+      if (res.statusCode >= 300) {
+        String msg;
+        if (res.statusCode == 400) {
+          msg = 'Yêu cầu không hợp lệ';
+        } else if (res.statusCode == 401) {
+          msg = 'Sai thông tin đăng nhập hoặc phiên đã hết hạn';
+        } else if (res.statusCode == 403) {
+          msg = 'Bạn không có quyền truy cập';
+        } else if (res.statusCode == 404) {
+          msg = 'Không tìm thấy dữ liệu';
+        } else if (res.statusCode == 429) {
+          msg = 'Bạn thao tác quá nhanh. Vui lòng thử lại sau.';
+        } else if (res.statusCode >= 500) {
+          msg = 'Máy chủ gặp sự cố, vui lòng thử lại.';
+        } else {
+          msg = 'Có lỗi xảy ra, vui lòng thử lại.';
+        }
+        throw ApiException(msg, statusCode: res.statusCode);
+      }
       final json = jsonDecode(res.body);
       return AttendanceModel.fromJson(json['attendance']);
     }

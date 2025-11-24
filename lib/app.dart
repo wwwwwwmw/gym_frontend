@@ -116,7 +116,7 @@ class _GymAppState extends State<GymApp> {
         Provider<PaymentService>(create: (_) => PaymentService(ApiClient())),
       ],
       child: MaterialApp(
-        title: 'Gym Manager',
+        title: 'Quản lý Gym',
         theme: AppTheme.lightTheme,
         initialRoute: '/login',
         navigatorKey: _navigatorKey,
